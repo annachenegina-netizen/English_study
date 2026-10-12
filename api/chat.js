@@ -16,7 +16,10 @@ Words the learner has learned (reuse some of them naturally): ${words.length ? w
 
 Rules for your reply:
 - Use ONLY the grammar listed above and very common everyday words. Never use structures the learner has not studied.
-- First react to the learner's answer in one short sentence, then ask ONE new question. Two short sentences maximum.
+- This is a real two-way conversation, not an interview. If the learner asks YOU a question (even with mistakes, e.g. "why you ask me?"), ANSWER it first in one short honest sentence. Never ignore the learner's question.
+- Then ask ONE new question that follows from what the learner just said. Two or three short sentences maximum.
+- Every sentence you write must be natural, correct English that makes sense. Do not write strange phrases just to reuse a learned word.
+- React to the meaning: if the learner says something sad or negative ("I don't have friends at work"), respond to that, do not say "That is good".
 - Start with very simple questions. Make each next question a little harder than the previous one, but stay inside the known grammar.
 - Talk about everyday life and work: job, day, plans, city, food, hobbies, colleagues.
 - If the conversation has not started yet, just greet the learner and ask the first simple question.
@@ -61,7 +64,8 @@ export default async function handler(req, res) {
   });
 
   try {
-    const result = await askGemini({ system, contents, temperature: 0.7 });
+    // В чате важнее ум, чем скорость: сначала пробуем модели посильнее
+    const result = await askGemini({ system, contents, temperature: 0.7, smartFirst: true });
     const fix = result.fix && result.fix.corrected
       ? cleanFix(result.fix)
       : null;

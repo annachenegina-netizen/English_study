@@ -49,10 +49,15 @@ export const TEACHER_STYLE = `
 "why" — ОДНО короткое предложение (до 15 слов), по-русски, на "ты".
   Говори про конкретные слова из его предложения: что добавить, убрать или переставить.
   Привяжи к русскому: чему это слово соответствует в русском или чего в русском нет.
-  Запрещено: термины (глагол, инфинитив, артикль, вспомогательный, время), общие правила "когда... то...", похвала, вступления.
+  Запрещено: общие правила "когда... то...", похвала, вступления.
+  ЗАПРЕЩЕНЫ ТЕРМИНЫ. Вместо них говори так:
+    глагол → "действие";  подлежащее → "кто" (I, you, he...);  вспомогательный глагол → "слово-помощник" или просто само слово (do, does, is);
+    артикль → "a" или "the";  существительное → "вещь";  предлог → само слово (in, at, to).
+  ПЛОХО: "В вопросах нужен вспомогательный глагол do перед подлежащим."
+  ХОРОШО: "В вопросе после why нужно слово do: why do you ask. Без do это не вопрос."
 
 "pattern" — шаблон, который можно запомнить и подставлять свои слова. Формат: английские слова + русские подсказки через плюс.
-  Примеры шаблонов: "want + to + действие", "he / she + действие с -s", "a + одна вещь".
+  Примеры шаблонов: "want + to + действие", "he / she + действие с -s", "a + одна вещь", "why + do + кто + действие".
 
 "examples" — ровно 2 коротких предложения по этому же шаблону, из самых простых слов, с переводом.
 
@@ -83,28 +88,51 @@ export function cleanExamples(examples) {
     .map((example) => ({ en: String(example.en), ru: String(example.ru || '') }));
 }
 
+// Страховка: модель иногда игнорирует запрет на термины. Меняем их на простые слова сами.
+const TERMS = [
+  [/вспомогательн[а-яё]+ глагол[а-яё]*/gi, 'слово-помощник'],
+  [/модальн[а-яё]+ глагол[а-яё]*/gi, 'слово'],
+  [/подлежащ[а-яё]+/gi, 'кто'],
+  [/сказуем[а-яё]+/gi, 'действие'],
+  [/глагол[а-яё]*/gi, 'действие'],
+  [/инфинитив[а-яё]*/gi, 'действие'],
+  [/существительн[а-яё]+/gi, 'вещь'],
+  [/(неопредел[её]нн[а-яё]+ |определ[её]нн[а-яё]+ )?артикл[а-яё]+/gi, 'a/the'],
+  [/предлог[а-яё]*/gi, 'маленькое слово'],
+];
+
+function plain(text) {
+  let result = String(text || '');
+  for (const [pattern, simple] of TERMS) result = result.replace(pattern, simple);
+  return result;
+}
+
 // Собирает разбор ошибки из ответа модели в аккуратный объект
 export function cleanFix(raw) {
   const known = raw.topic in TOPIC_NAMES_EN || raw.topic in EXTRA_RULES;
   return {
     corrected: String(raw.corrected || ''),
-    why: String(raw.why || ''),
-    pattern: String(raw.pattern || ''),
+    why: plain(raw.why),
+    pattern: plain(raw.pattern),
     examples: cleanExamples(raw.examples),
     topic: known ? raw.topic : 'other',
-    rule: known ? '' : String(raw.rule || ''),
+    rule: known ? '' : plain(raw.rule),
   };
 }
 
 // system — инструкция, contents — сообщения в формате Gemini
-export async function askGemini({ system, contents, temperature = 0.3 }) {
+// smartFirst — сначала модели посильнее (для чата), иначе сначала быстрые
+export async function askGemini({ system, contents, temperature = 0.3, smartFirst = false }) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
     console.log('[gemini] В настройках Vercel не задана переменная GEMINI_API_KEY');
     throw new GeminiError('На сервере не задан GEMINI_API_KEY', 500);
   }
 
-  const models = modelList();
+  const all = modelList();
+  const models = smartFirst
+    ? [...all.filter((model) => !model.includes('lite')), ...all.filter((model) => model.includes('lite'))]
+    : all;
 
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: system }] },
