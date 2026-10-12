@@ -4,6 +4,9 @@
 // код менять не придётся.
 const DEFAULT_MODEL = 'gemini-3.8-flash';
 
+// Запасные модели: если основная перегружена (503), пробуем их по очереди
+const FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash'];
+
 // Общие правила стиля для всех объяснений. Подогнаны под Влада:
 // практик, не любит термины и воду, лучше понимает на примере.
 export const TEACHER_STYLE = `
@@ -25,8 +28,8 @@ export async function askGemini({ system, contents, temperature = 0.3 }) {
     throw new GeminiError('На сервере не задан GEMINI_API_KEY', 500);
   }
 
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  // Список моделей по очереди: основная, потом запасные
+  const models = [...new Set([process.env.GEMINI_MODEL || DEFAULT_MODEL, ...FALLBACK_MODELS])];
 
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: system }] },
@@ -38,24 +41,27 @@ export async function askGemini({ system, contents, temperature = 0.3 }) {
     },
   });
 
-  // 503 — модель перегружена. Это временно, поэтому пробуем ещё пару раз с паузой.
-  const pauses = [1000, 2500];
+  // 503 — модель перегружена. Пробуем её дважды, потом переходим к следующей модели.
   let response;
-  for (let attempt = 0; ; attempt++) {
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body,
-    });
-    if (response.status !== 503 || attempt >= pauses.length) break;
-    console.log(`[gemini] Модель перегружена, попытка ${attempt + 2} через ${pauses[attempt]} мс`);
-    await new Promise((resolve) => setTimeout(resolve, pauses[attempt]));
+  search:
+  for (const model of models) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body,
+      });
+      if (response.status !== 503) break search;
+      console.log(`[gemini] Модель ${model} перегружена, попытка ${attempt}`);
+      if (attempt === 1) await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
   }
 
   const data = await response.json().catch(() => ({}));
 
   if (response.status === 503) {
-    throw new GeminiError('Gemini сейчас перегружен — это на стороне Google. Подожди минуту и нажми ещё раз.', 503);
+    throw new GeminiError('Все модели Gemini сейчас перегружены — это на стороне Google. Подожди минуту и нажми ещё раз.', 503);
   }
   if (response.status === 429) {
     throw new GeminiError('Бесплатный лимит Gemini на эту минуту кончился. Подожди минуту и попробуй ещё раз.', 429);
