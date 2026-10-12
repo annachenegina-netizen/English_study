@@ -91,6 +91,13 @@ export function resultBox(result, original) {
   if (result.correct) {
     return h('div', { class: 'result ok' }, h('div', { class: 'result-title' }, '✓ Верно'));
   }
+  // Заданное слово использовано верно, но в другом месте предложения есть ошибка
+  if (result.wordOk) {
+    return h('div', { class: 'result warn' },
+      h('div', { class: 'result-title' }, '✓ Слово засчитано. Но в предложении есть ошибка:'),
+      ...fixDetails(result, original),
+    );
+  }
   return h('div', { class: 'result bad' },
     h('div', { class: 'result-title' }, '✗ Есть ошибка'),
     ...fixDetails(result, original),

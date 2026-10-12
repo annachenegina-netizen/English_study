@@ -83,14 +83,16 @@ function renderCard(root, [word, ru, example], review) {
 
       try {
         const result = await api('/api/check', { method: 'POST', body: { mode: 'word', word, ru, answer } });
-        recordWord(word, result.correct);
+        // Слово засчитываем, если оно само использовано верно — даже при ошибке в другом месте
+        const passed = result.correct || result.wordOk;
+        recordWord(word, passed);
         feedback.replaceChildren(
           resultBox(result, answer),
-          result.correct
+          passed
             ? h('button', { class: 'btn', type: 'button', onclick: () => rerender(root) }, 'Дальше')
             : h('p', { class: 'muted' }, 'Исправь предложение и проверь ещё раз.'),
         );
-        if (result.correct) {
+        if (passed) {
           submit.hidden = true;
           input.disabled = true;
         }

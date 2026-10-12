@@ -10,7 +10,7 @@ const SYSTEM = `
 Ты проверяешь одно английское предложение русскоязычного ученика уровня A1-A2.
 
 Верни строго JSON:
-{"correct": true/false, "corrected": "...", "why": "...", "pattern": "...", "examples": [{"en": "...", "ru": "..."}, {"en": "...", "ru": "..."}], "topic": "...", "literal": "..."}
+{"correct": true/false, "corrected": "...", "why": "...", "pattern": "...", "examples": [{"en": "...", "ru": "..."}, {"en": "...", "ru": "..."}], "topic": "...", "literal": "...", "word_ok": true/false}
 
 - correct: true, если так может сказать носитель языка и задание выполнено.
 
@@ -24,6 +24,10 @@ const SYSTEM = `
 - то, что можно сказать и по-другому. Верных вариантов много — принимай любой.
 Перед ответом проверь себя: "А это точно ошибка? Говорят ли так носители?" Если говорят — correct: true.
 - corrected: правильный вариант на английском. Меняй как можно меньше слов ученика. Если всё верно — повтори его предложение.
+- word_ok (только для задания "составить предложение со словом"): true, если САМО заданное слово использовано правильно — по смыслу и на своём месте, даже когда в другой части предложения есть ошибка.
+  Пример: слово "but", ученик написал "I like planes but it is scared" → correct: false (ошибка в scared), word_ok: true (but использовано верно).
+  Пример: слово "want", ученик написал "I want smoke" → correct: false, word_ok: false (ошибка как раз в том, как использовано want).
+  Если correct: true — word_ok тоже true. Если заданного слова в предложении нет — word_ok: false.
 - Исправляй только то, что написал ученик. НИКОГДА не сочиняй предложение за него и не дописывай недостающие части от себя.
 - Если ученик написал не предложение, а отдельные слова или обрывок, из которого не понять, что он хотел сказать:
   correct: false, corrected: "" (пустая строка), literal: "", pattern: "", examples: [], topic: "other",
@@ -69,7 +73,13 @@ export default async function handler(req, res) {
       contents: [{ role: 'user', parts: [{ text: task }] }],
       smartFirst: true, // объяснения важнее скорости: лёгкая модель объясняла плохо
     });
-    return res.status(200).json({ correct: Boolean(result.correct), ...cleanFix(result) });
+    const correct = Boolean(result.correct);
+    return res.status(200).json({
+      correct,
+      // Слово засчитано: оно использовано верно, даже если ошибка есть в другом месте
+      wordOk: correct || (mode === 'word' && result.word_ok === true),
+      ...cleanFix(result),
+    });
   } catch (error) {
     console.log('[check] Проверка не удалась:', error.message);
     return res.status(error.status || 500).json({ error: error.message });
