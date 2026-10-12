@@ -76,7 +76,9 @@ export function fixDetails(fix, original) {
   } }, 'ⓘ Справка: зачем и когда');
 
   return [
-    h('div', { class: 'result-fix' }, ...highlighted(fix.corrected, original), speakButton(fix.corrected)),
+    fix.corrected
+      ? h('div', { class: 'result-fix' }, ...highlighted(fix.corrected, original), speakButton(fix.corrected))
+      : null,
     fix.literal ? h('p', { class: 'literal' }, 'У тебя получилось: ', h('b', null, `«${fix.literal}»`)) : null,
     fix.why || fix.explanation ? h('p', null, fix.why || fix.explanation) : null,
     hasReference ? button : null,

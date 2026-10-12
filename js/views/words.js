@@ -68,6 +68,15 @@ function renderCard(root, [word, ru, example], review) {
       const answer = input.value.trim();
       if (!answer) return;
 
+      // Одно-два слова — это не предложение. Говорим сразу, ИИ не дёргаем.
+      if (answer.split(/\s+/).length < 3) {
+        feedback.replaceChildren(h('div', { class: 'result bad' },
+          h('div', { class: 'result-title' }, 'Это ещё не предложение'),
+          h('p', null, `Нужно целое предложение со словом «${word}»: кто + что делает. Минимум три слова.`),
+        ));
+        return;
+      }
+
       submit.disabled = true;
       submit.textContent = 'Проверяю…';
       feedback.replaceChildren();
