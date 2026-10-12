@@ -16,6 +16,9 @@ const FALLBACK_MODELS = [
 // 404 — модель недоступна, 429 — кончился её лимит, 500/503 — сбой или перегруз
 const TRY_NEXT_MODEL = [404, 429, 500, 503];
 
+const MODEL_TIMEOUT = 12000; // сколько ждём одну модель, мс
+const TOTAL_TIMEOUT = 40000; // сколько ждём всего, мс
+
 // Общие правила стиля для всех объяснений. Подогнаны под Влада:
 // практик, не любит термины и воду, лучше понимает на примере.
 // Разбор ошибки всегда состоит из трёх частей: why, pattern, examples.
@@ -79,21 +82,33 @@ export async function askGemini({ system, contents, temperature = 0.3 }) {
   });
 
   // Идём по моделям по очереди, пока какая-нибудь не ответит
-  let response;
+  // Каждой модели даём MODEL_TIMEOUT на ответ. Молчит дольше — бросаем её и идём дальше.
+  let response = null;
+  let data = {};
+  const deadline = Date.now() + TOTAL_TIMEOUT;
   for (const model of models) {
-    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body,
-    });
+    if (Date.now() + MODEL_TIMEOUT > deadline) break;
+    try {
+      const attempt = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body,
+        signal: AbortSignal.timeout(MODEL_TIMEOUT),
+      });
+      // Тело читаем под тем же таймаутом: ответ может зависнуть уже после заголовков
+      const raw = await attempt.text();
+      try { data = JSON.parse(raw); } catch { data = {}; }
+      response = attempt;
+    } catch (error) {
+      console.log(`[gemini] Модель ${model} молчит дольше ${MODEL_TIMEOUT / 1000} с или связь оборвалась (${error.name}), пробую следующую`);
+      continue;
+    }
     if (!TRY_NEXT_MODEL.includes(response.status)) break;
     console.log(`[gemini] Модель ${model} не ответила (ошибка ${response.status}), пробую следующую`);
   }
 
-  const data = await response.json().catch(() => ({}));
-
-  if (TRY_NEXT_MODEL.includes(response.status)) {
-    console.log('[gemini] Ни одна модель не ответила. Последняя ошибка:', response.status, JSON.stringify(data.error || data));
+  if (!response || TRY_NEXT_MODEL.includes(response.status)) {
+    console.log('[gemini] Ни одна модель не ответила. Последняя ошибка:', response?.status, JSON.stringify(data.error || data));
     throw new GeminiError('Ни одна модель Gemini сейчас не ответила — перегруз или кончился лимит. Подожди минуту и нажми ещё раз.', 503);
   }
   if (!response.ok) {

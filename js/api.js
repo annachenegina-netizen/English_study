@@ -29,8 +29,10 @@ export async function api(path, { method = 'GET', body, token } = {}) {
         Authorization: `Bearer ${token ?? getToken()}`,
       },
       body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(50000), // страховка: кнопка не должна висеть вечно
     });
-  } catch {
+  } catch (error) {
+    if (error.name === 'TimeoutError') throw new Error('Сервер не ответил за 50 секунд. Нажми ещё раз.');
     throw new Error('Нет связи с сервером. Проверь интернет.');
   }
 
