@@ -27,6 +27,8 @@ or, if the last message has a mistake:
 {"reply": "...", "fix": {"corrected": "the correct English sentence", "why": "...", "pattern": "...", "examples": [{"en": "...", "ru": "..."}, {"en": "...", "ru": "..."}]}}
 
 - fix is null when the message is correct (ignore capital letters and final punctuation) or when there is no learner message yet.
+- Do NOT nitpick. A false correction is worse than a missed one. Use fix only when you are 100% sure a native speaker would not say it. If in doubt, fix is null.
+- Never correct: capitalization, punctuation, brand spelling, simple-but-correct sentences, a missing article before drinks, food, names, cities, languages ("I want coffee", "I like tea" are correct).
 - fix.corrected: change as few of the learner's words as possible.
 - If the learner wrote in Russian, put the English version into fix.corrected and continue the conversation.
 
