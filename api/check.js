@@ -2,7 +2,7 @@
 // mode: 'word'      — предложение с заданным словом (раздел «Слова»)
 // mode: 'translate' — перевод русского предложения (раздел «Грамматика»)
 import { checkAuth } from './_lib/auth.js';
-import { askGemini, TEACHER_STYLE, cleanExamples } from './_lib/gemini.js';
+import { askGemini, TEACHER_STYLE, cleanFix } from './_lib/gemini.js';
 
 const MAX_LENGTH = 300;
 
@@ -10,7 +10,7 @@ const SYSTEM = `
 Ты проверяешь одно английское предложение русскоязычного ученика уровня A1-A2.
 
 Верни строго JSON:
-{"correct": true/false, "corrected": "...", "why": "...", "pattern": "...", "examples": [{"en": "...", "ru": "..."}, {"en": "...", "ru": "..."}]}
+{"correct": true/false, "corrected": "...", "why": "...", "pattern": "...", "examples": [{"en": "...", "ru": "..."}, {"en": "...", "ru": "..."}], "topic": "...", "rule": "..."}
 
 - correct: true, если так может сказать носитель языка и задание выполнено.
 
@@ -24,7 +24,7 @@ const SYSTEM = `
 - то, что можно сказать и по-другому. Верных вариантов много — принимай любой.
 Перед ответом проверь себя: "А это точно ошибка? Говорят ли так носители?" Если говорят — correct: true.
 - corrected: правильный вариант на английском. Меняй как можно меньше слов ученика. Если всё верно — повтори его предложение.
-- Если correct: true — why и pattern пустые строки, examples пустой массив. Ничего не объясняй.
+- Если correct: true — why, pattern, topic, rule пустые строки, examples пустой массив. Ничего не объясняй.
 
 ${TEACHER_STYLE}
 `.trim();
@@ -64,13 +64,7 @@ export default async function handler(req, res) {
       system: SYSTEM,
       contents: [{ role: 'user', parts: [{ text: task }] }],
     });
-    return res.status(200).json({
-      correct: Boolean(result.correct),
-      corrected: String(result.corrected || ''),
-      why: String(result.why || ''),
-      pattern: String(result.pattern || ''),
-      examples: cleanExamples(result.examples),
-    });
+    return res.status(200).json({ correct: Boolean(result.correct), ...cleanFix(result) });
   } catch (error) {
     console.log('[check] Проверка не удалась:', error.message);
     return res.status(error.status || 500).json({ error: error.message });

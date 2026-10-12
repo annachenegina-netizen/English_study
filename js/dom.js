@@ -1,4 +1,5 @@
 // Маленькие помощники для работы со страницей.
+import { TOPICS, EXTRA_RULES } from './data/grammar.js';
 
 // Создаёт элемент: h('button', { class: 'btn', onclick: fn }, 'Текст')
 // Текст вставляется безопасно (не как HTML). Для своего HTML есть атрибут html.
@@ -47,17 +48,39 @@ function highlighted(corrected, original) {
   });
 }
 
-// Разбор ошибки: как правильно → почему → шаблон → два примера.
-// fix — { corrected, why, pattern, examples }, original — что написал ученик.
-export function fixDetails(fix, original) {
-  return [
-    h('div', { class: 'result-fix' }, ...highlighted(fix.corrected, original), speakButton(fix.corrected)),
-    fix.why || fix.explanation ? h('p', null, fix.why || fix.explanation) : null,
+// Справка по теме ошибки. Текст правила — наш, написанный вручную (data/grammar.js),
+// а не придуманный моделью. Если тема не из списка — показываем короткую справку от модели.
+function reference(fix) {
+  const topic = TOPICS.find((item) => item.id === fix.topic) || EXTRA_RULES[fix.topic];
+  return h('div', { class: 'reference' },
     fix.pattern ? h('div', { class: 'pattern' }, fix.pattern) : null,
     fix.examples?.length
       ? h('ul', { class: 'examples' }, fix.examples.map((example) =>
           h('li', null, h('b', null, example.en), example.ru ? ` — ${example.ru}` : '')))
       : null,
+    topic ? h('div', { class: 'reference-title' }, topic.title) : null,
+    topic ? h('div', { class: 'rule', html: topic.html }) : null,
+    !topic && fix.rule ? h('p', { class: 'rule-ai' }, fix.rule) : null,
+  );
+}
+
+// Разбор ошибки: сразу видно, где ошибка и одной строкой почему.
+// Подробности (шаблон, примеры, правило) — по кнопке «Справка».
+// fix — { corrected, why, pattern, examples, topic, rule }, original — что написал ученик.
+export function fixDetails(fix, original) {
+  const hasReference = fix.pattern || fix.examples?.length || fix.rule || (fix.topic && fix.topic !== 'other');
+  const panel = h('div');
+  const button = h('button', { class: 'info-btn', type: 'button', onclick: () => {
+    const open = panel.childElementCount > 0;
+    panel.replaceChildren(...(open ? [] : [reference(fix)]));
+    button.textContent = open ? 'ⓘ Справка: зачем и когда' : 'Скрыть справку';
+  } }, 'ⓘ Справка: зачем и когда');
+
+  return [
+    h('div', { class: 'result-fix' }, ...highlighted(fix.corrected, original), speakButton(fix.corrected)),
+    fix.why || fix.explanation ? h('p', null, fix.why || fix.explanation) : null,
+    hasReference ? button : null,
+    panel,
   ];
 }
 

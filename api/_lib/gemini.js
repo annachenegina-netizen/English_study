@@ -1,4 +1,5 @@
 // Обёртка над Gemini API. Всегда просим ответ в виде JSON.
+import { TOPIC_NAMES_EN, EXTRA_RULES } from '../../js/data/grammar.js';
 
 // Модель по умолчанию. Если Google её переименует — задай GEMINI_MODEL в Vercel,
 // код менять не придётся.
@@ -27,9 +28,23 @@ const TOTAL_TIMEOUT = 40000; // сколько ждём всего, мс
 
 // Общие правила стиля для всех объяснений. Подогнаны под Влада:
 // практик, не любит термины и воду, лучше понимает на примере.
-// Разбор ошибки всегда состоит из трёх частей: why, pattern, examples.
+// Темы справочника с описанием для модели: по ним она относит ошибку к теме
+const TOPIC_LIST = [
+  ...Object.entries(TOPIC_NAMES_EN).map(([id, name]) => `"${id}" — ${name}`),
+  ...Object.entries(EXTRA_RULES).map(([id, rule]) => `"${id}" — ${rule.forAi}`),
+].join('\n  ');
+
+// Разбор ошибки: why, pattern, examples, topic, rule.
 export const TEACHER_STYLE = `
-Разбор ошибки — три поля. Ученик — новичок (A1), терминов не знает.
+Разбор ошибки. Ученик — новичок (A1), терминов не знает.
+
+"topic" — к какой теме относится главная ошибка. Одно значение из списка:
+  ${TOPIC_LIST}
+  "other" — если ни одна тема не подходит.
+
+"rule" — заполняй ТОЛЬКО если topic = "other", иначе пустая строка.
+  Это мини-справка: 2 коротких строки. Первая начинается с "Когда так:", вторая с "Когда не так:".
+  Пиши только то, в чём уверен на 100%. Без терминов.
 
 "why" — ОДНО короткое предложение (до 15 слов), по-русски, на "ты".
   Говори про конкретные слова из его предложения: что добавить, убрать или переставить.
@@ -47,11 +62,13 @@ export const TEACHER_STYLE = `
     why: "После want перед действием ставится to — это как русское «-ть» в слове «курить»."
     pattern: "want + to + действие"
     examples: [{"en": "I want to eat.", "ru": "Я хочу есть."}, {"en": "I want to sleep.", "ru": "Я хочу спать."}]
+    topic: "to_verb", rule: ""
 
 Образец. Ученик написал "She work in bank":
     why: "После she к действию добавляется -s: work → works. И перед bank нужно a."
     pattern: "he / she + действие с -s"
     examples: [{"en": "She lives here.", "ru": "Она живёт здесь."}, {"en": "He likes coffee.", "ru": "Ему нравится кофе."}]
+    topic: "ps", rule: ""
 
 Если ошибок несколько — исправь все, а объясни одну главную (вторую можно упомянуть одной короткой фразой).
 Не предлагай "более естественные" или разговорные варианты: только исправление ошибки, теми же словами ученика.
@@ -64,6 +81,19 @@ export function cleanExamples(examples) {
     .filter((example) => example && example.en)
     .slice(0, 2)
     .map((example) => ({ en: String(example.en), ru: String(example.ru || '') }));
+}
+
+// Собирает разбор ошибки из ответа модели в аккуратный объект
+export function cleanFix(raw) {
+  const known = raw.topic in TOPIC_NAMES_EN || raw.topic in EXTRA_RULES;
+  return {
+    corrected: String(raw.corrected || ''),
+    why: String(raw.why || ''),
+    pattern: String(raw.pattern || ''),
+    examples: cleanExamples(raw.examples),
+    topic: known ? raw.topic : 'other',
+    rule: known ? '' : String(raw.rule || ''),
+  };
 }
 
 // system — инструкция, contents — сообщения в формате Gemini

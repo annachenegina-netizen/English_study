@@ -1,7 +1,7 @@
 // POST /api/chat — разговорная практика.
 // ИИ задаёт вопрос, ученик отвечает, ИИ исправляет ответ и задаёт следующий вопрос.
 import { checkAuth } from './_lib/auth.js';
-import { askGemini, TEACHER_STYLE, cleanExamples } from './_lib/gemini.js';
+import { askGemini, TEACHER_STYLE, cleanFix } from './_lib/gemini.js';
 
 const MAX_MESSAGES = 12; // сколько последних реплик отправляем модели — экономим токены
 const MAX_LENGTH = 400;
@@ -24,7 +24,7 @@ Rules for your reply:
 Also check the learner's LAST message and return strictly JSON:
 {"reply": "your reaction and next question in English", "fix": null}
 or, if the last message has a mistake:
-{"reply": "...", "fix": {"corrected": "the correct English sentence", "why": "...", "pattern": "...", "examples": [{"en": "...", "ru": "..."}, {"en": "...", "ru": "..."}]}}
+{"reply": "...", "fix": {"corrected": "the correct English sentence", "why": "...", "pattern": "...", "examples": [{"en": "...", "ru": "..."}, {"en": "...", "ru": "..."}], "topic": "...", "rule": "..."}}
 
 - fix is null when the message is correct (ignore capital letters and final punctuation) or when there is no learner message yet.
 - Do NOT nitpick. A false correction is worse than a missed one. Use fix only when you are 100% sure a native speaker would not say it. If in doubt, fix is null.
@@ -32,7 +32,7 @@ or, if the last message has a mistake:
 - fix.corrected: change as few of the learner's words as possible.
 - If the learner wrote in Russian, put the English version into fix.corrected and continue the conversation.
 
-Правила для полей fix.why, fix.pattern, fix.examples:
+Правила для полей fix.why, fix.pattern, fix.examples, fix.topic, fix.rule:
 ${TEACHER_STYLE}
 `.trim();
 }
@@ -63,12 +63,7 @@ export default async function handler(req, res) {
   try {
     const result = await askGemini({ system, contents, temperature: 0.7 });
     const fix = result.fix && result.fix.corrected
-      ? {
-          corrected: String(result.fix.corrected),
-          why: String(result.fix.why || ''),
-          pattern: String(result.fix.pattern || ''),
-          examples: cleanExamples(result.fix.examples),
-        }
+      ? cleanFix(result.fix)
       : null;
     return res.status(200).json({ reply: String(result.reply || ''), fix });
   } catch (error) {

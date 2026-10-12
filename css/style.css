@@ -191,6 +191,24 @@ a { color: var(--accent); }
 /* Подсветка слова, которое исправили */
 mark { background: none; color: var(--ok); text-decoration: underline; text-underline-offset: 3px; }
 
+/* Кнопка «Справка» и раскрывающийся блок под ней */
+.info-btn {
+  margin-top: 10px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--accent);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.reference { margin-top: 10px; font-size: 15px; }
+.reference-title { margin-top: 12px; font-weight: 700; }
+.reference .rule p { margin: 8px 0; }
+.reference .rule .formula, .reference .rule .trap { background: var(--card); }
+.rule-ai { white-space: pre-line; }
+
 /* Шаблон для запоминания и примеры к нему */
 .pattern {
   margin-top: 10px;

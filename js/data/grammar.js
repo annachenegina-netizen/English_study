@@ -3,6 +3,51 @@
 // translate — задания на перевод (проверяет ИИ)
 // В order поле en пишем без точки и вопросительного знака в конце.
 
+// Справка по частым ошибкам, которых нет среди тем курса.
+// Показывается по кнопке «Справка» под разбором ошибки.
+export const EXTRA_RULES = {
+  to_verb: {
+    title: 'to между двумя действиями',
+    forAi: 'missing "to" between two verbs: want to go, need to buy, like to read',
+    html: `
+      <p>«Хочу <b>курить</b>», «надо <b>купить</b>», «люблю <b>читать</b>» — второе действие в русском кончается на «-ть». В английском вместо «-ть» перед ним ставится <b>to</b>.</p>
+      <p class="formula">want / need / like + to + действие</p>
+      <ul>
+        <li>I want <b>to</b> sleep. — Я хочу спать.</li>
+        <li>I need <b>to</b> go. — Мне надо идти.</li>
+      </ul>
+      <p><b>Когда to не нужно:</b> после can и will — I can swim. I will call.</p>
+      <p><b>И не нужно перед вещью:</b> I want coffee. — тут нет второго действия.</p>`,
+  },
+  plural: {
+    title: 'Несколько штук: -s на конце',
+    forAi: 'missing or wrong plural -s: two cars, many friends',
+    html: `
+      <p>Когда вещей больше одной, к слову добавляется <b>-s</b>.</p>
+      <p class="formula">один: a car · несколько: cars</p>
+      <ul>
+        <li>I have two friend<b>s</b>. — У меня два друга.</li>
+        <li>There are many room<b>s</b>. — Тут много комнат.</li>
+      </ul>
+      <p><b>Когда -s не нужно:</b> то, что не считают поштучно — water, money, coffee, time.</p>
+      <p><b>Особые слова:</b> man → men, person → people, child → children.</p>`,
+  },
+  prep: {
+    title: 'in, at, on, to — маленькие слова места',
+    forAi: 'wrong or missing preposition of place or time: in, at, on, to',
+    html: `
+      <p>В русском одно «в» на всё. В английском их несколько.</p>
+      <ul>
+        <li><b>in</b> — внутри, в городе, стране: in Berlin, in the room.</li>
+        <li><b>at</b> — в точке, «на месте»: at home, at work, at school.</li>
+        <li><b>on</b> — на поверхности и про дни: on the table, on Monday.</li>
+        <li><b>to</b> — движение куда-то: I go <b>to</b> work.</li>
+      </ul>
+      <p><b>Время:</b> at 9 o'clock · on Monday · in the morning · in May.</p>
+      <p class="trap">Ловушка: «домой» — просто home, без to: I go home.</p>`,
+  },
+};
+
 // Английские названия тем — их получает ИИ в чате, чтобы знать, какой грамматикой можно пользоваться
 export const TOPIC_NAMES_EN = {
   be: 'to be: am / is / are (statements, negatives, questions)',
@@ -118,6 +163,13 @@ export const TOPICS = [
         <li><b>an</b> — то же, что a, но перед гласным звуком: <b>an</b> idea, <b>an</b> old house.</li>
       </ul>
       <p>Профессия и «какой он» — всегда с a: He is <b>a</b> manager. It is <b>a</b> good idea.</p>
+      <p><b>Когда не ставить ничего:</b></p>
+      <ul>
+        <li>напитки, еда, вещества: I want coffee. I like tea. I need water.</li>
+        <li>имена, города, страны, языки: I live in Berlin. I speak English.</li>
+        <li>несколько штук «вообще»: I like cars.</li>
+        <li>перед my / your / his / this: my car, this idea.</li>
+      </ul>
       <p class="trap">Ловушка: одна штука, которую можно посчитать, не бывает «голой». Не «I have car», а «I have a car». Проверка: можно подставить «какой-то» или «тот самый»? Значит нужен a или the.</p>`,
     order: [
       { ru: 'У меня новая работа.', en: 'I have a new job' },
