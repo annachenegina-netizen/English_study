@@ -139,9 +139,9 @@ export function allComplete() {
 
 // ---------- Слова ----------
 
-// Слова идут подряд по всем уровням и не ждут грамматику: учи сколько хочешь
+// Слова, доступные на текущем уровне. Следующий уровень открывается после тем по грамматике.
 function availableWords() {
-  return WORD_LEVELS.flat();
+  return WORD_LEVELS.slice(0, currentLevel()).flat();
 }
 
 export function dueCount() {
@@ -185,14 +185,6 @@ export function recordWord(word, correct) {
   }
 
   state.progress.words[word] = saved;
-  touchStreak();
-  save();
-}
-
-// Кнопка «Уже знаю»: слово сразу считается выученным и придёт на проверку через месяц
-export function markKnown(word) {
-  const stage = INTERVALS.length - 1;
-  state.progress.words[word] = { stage, due: Date.now() + INTERVALS[stage] * DAY };
   touchStreak();
   save();
 }

@@ -1,7 +1,7 @@
 // Раздел «Слова»: показываем слово → ученик составляет с ним предложение → ИИ проверяет.
 import { h, speakButton, resultBox } from '../dom.js';
 import { api } from '../api.js';
-import { nextWord, recordWord, markKnown, wordTotals } from '../store.js';
+import { nextWord, recordWord, wordTotals } from '../store.js';
 
 export function renderWords(root) {
   const next = nextWord();
@@ -10,9 +10,9 @@ export function renderWords(root) {
 
   if (next.empty === 'no-words') {
     root.append(h('section', { class: 'card center' },
-      h('h2', null, 'Все слова пройдены'),
-      h('p', { class: 'muted' }, 'Новых слов в списке больше нет. Повторения придут сами, когда подойдёт срок.'),
-      h('a', { class: 'btn', href: '#/chat' }, 'Пойти в чат'),
+      h('h2', null, 'Слова этого уровня выучены'),
+      h('p', { class: 'muted' }, 'Новые откроются на следующем уровне — для этого пройди темы по грамматике. Повторения придут сами, когда подойдёт срок.'),
+      h('a', { class: 'btn', href: '#/grammar' }, 'К грамматике'),
     ));
     return;
   }
@@ -87,11 +87,5 @@ function renderCard(root, [word, ru, example], review) {
     },
   }, input, submit);
 
-  // Знакомое слово можно пролистнуть, не составляя предложение
-  const skip = review ? null : h('button', { class: 'btn ghost', type: 'button', onclick: () => {
-    markKnown(word);
-    rerender(root);
-  } }, 'Уже знаю — дальше');
-
-  root.append(h('section', { class: 'card' }, ...head, form, feedback, skip));
+  root.append(h('section', { class: 'card' }, ...head, form, feedback));
 }
