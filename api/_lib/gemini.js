@@ -153,51 +153,72 @@ export async function askGemini({ system, contents, temperature = 0.3, smartFirs
     generationConfig: {
       temperature,
       responseMimeType: 'application/json',
-      maxOutputTokens: 2000,
+      maxOutputTokens: 8000, // с запасом: «думающие» модели тратят часть лимита на размышления
     },
   });
 
-  // Идём по моделям по очереди, пока какая-нибудь не ответит
-  // Каждой модели даём MODEL_TIMEOUT на ответ. Молчит дольше — бросаем её и идём дальше.
-  let response = null;
-  let data = {};
+  // Идём по моделям по очереди, пока какая-нибудь не даст нормальный ответ.
+  // Каждой модели даём MODEL_TIMEOUT. Молчит, упала или прислала мусор — идём к следующей.
+  let lastProblem = 'нет ответа';
   const deadline = Date.now() + TOTAL_TIMEOUT;
   for (const model of models) {
     if (Date.now() + MODEL_TIMEOUT > deadline) break;
+
+    let response;
+    let data = {};
     try {
-      const attempt = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body,
         signal: AbortSignal.timeout(MODEL_TIMEOUT),
       });
       // Тело читаем под тем же таймаутом: ответ может зависнуть уже после заголовков
-      const raw = await attempt.text();
+      const raw = await response.text();
       try { data = JSON.parse(raw); } catch { data = {}; }
-      response = attempt;
     } catch (error) {
-      console.log(`[gemini] Модель ${model} молчит дольше ${MODEL_TIMEOUT / 1000} с или связь оборвалась (${error.name}), пробую следующую`);
+      lastProblem = `${model}: молчит дольше ${MODEL_TIMEOUT / 1000} с (${error.name})`;
+      console.log(`[gemini] ${lastProblem}, пробую следующую`);
       continue;
     }
-    if (!TRY_NEXT_MODEL.includes(response.status)) break;
-    console.log(`[gemini] Модель ${model} не ответила (ошибка ${response.status}), пробую следующую`);
+
+    if (TRY_NEXT_MODEL.includes(response.status)) {
+      lastProblem = `${model}: ошибка ${response.status}`;
+      console.log(`[gemini] ${lastProblem}, пробую следующую`);
+      continue;
+    }
+    if (!response.ok) {
+      // Ошибка в самом запросе или ключе — другая модель тут не поможет
+      console.log('[gemini] Ошибка от Google:', response.status, JSON.stringify(data.error || data));
+      throw new GeminiError(`Gemini ответил ошибкой ${response.status}: ${data.error?.message || 'неизвестная ошибка'}`, 502);
+    }
+
+    const candidate = data.candidates?.[0];
+    // Части с пометкой thought — это «мысли» модели, а не ответ
+    const text = (candidate?.content?.parts || []).filter((part) => !part.thought).map((part) => part.text || '').join('');
+    const result = parseJson(text);
+    if (result) return result;
+
+    // Пустой или оборванный ответ: смотрим причину и пробуем следующую модель
+    lastProblem = `${model}: непонятный ответ (finishReason: ${candidate?.finishReason || data.promptFeedback?.blockReason || 'нет'})`;
+    console.log(`[gemini] ${lastProblem}. Текст: ${text.slice(0, 200)}`);
   }
 
-  if (!response || TRY_NEXT_MODEL.includes(response.status)) {
-    console.log('[gemini] Ни одна модель не ответила. Последняя ошибка:', response?.status, JSON.stringify(data.error || data));
-    throw new GeminiError('Ни одна модель Gemini сейчас не ответила — перегруз или кончился лимит. Подожди минуту и нажми ещё раз.', 503);
-  }
-  if (!response.ok) {
-    console.log('[gemini] Ошибка от Google:', response.status, JSON.stringify(data.error || data));
-    throw new GeminiError(`Gemini ответил ошибкой ${response.status}: ${data.error?.message || 'неизвестная ошибка'}`, 502);
-  }
+  console.log('[gemini] Ни одна модель не дала ответ. Последняя проблема:', lastProblem);
+  throw new GeminiError(`Ни одна модель Gemini сейчас не дала ответ (${lastProblem}). Подожди минуту и нажми ещё раз.`, 503);
+}
 
-  const text = (data.candidates?.[0]?.content?.parts || []).map((part) => part.text || '').join('');
+// Достаёт JSON из ответа модели, даже если она обернула его в ```json или добавила текст вокруг
+function parseJson(text) {
+  const cleaned = String(text || '').replace(/```(?:json)?/gi, '').trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
   try {
-    return JSON.parse(text);
+    const value = JSON.parse(cleaned.slice(start, end + 1));
+    return value && typeof value === 'object' ? value : null;
   } catch {
-    console.log('[gemini] Модель вернула не JSON:', text.slice(0, 300));
-    throw new GeminiError('Gemini вернул непонятный ответ. Попробуй ещё раз.', 502);
+    return null;
   }
 }
 
