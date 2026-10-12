@@ -28,22 +28,35 @@ export async function askGemini({ system, contents, temperature = 0.3 }) {
   const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents,
-      generationConfig: {
-        temperature,
-        responseMimeType: 'application/json',
-        maxOutputTokens: 2000,
-      },
-    }),
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: system }] },
+    contents,
+    generationConfig: {
+      temperature,
+      responseMimeType: 'application/json',
+      maxOutputTokens: 2000,
+    },
   });
+
+  // 503 — модель перегружена. Это временно, поэтому пробуем ещё пару раз с паузой.
+  const pauses = [1000, 2500];
+  let response;
+  for (let attempt = 0; ; attempt++) {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body,
+    });
+    if (response.status !== 503 || attempt >= pauses.length) break;
+    console.log(`[gemini] Модель перегружена, попытка ${attempt + 2} через ${pauses[attempt]} мс`);
+    await new Promise((resolve) => setTimeout(resolve, pauses[attempt]));
+  }
 
   const data = await response.json().catch(() => ({}));
 
+  if (response.status === 503) {
+    throw new GeminiError('Gemini сейчас перегружен — это на стороне Google. Подожди минуту и нажми ещё раз.', 503);
+  }
   if (response.status === 429) {
     throw new GeminiError('Бесплатный лимит Gemini на эту минуту кончился. Подожди минуту и попробуй ещё раз.', 429);
   }
