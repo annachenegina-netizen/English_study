@@ -4,8 +4,17 @@
 // код менять не придётся.
 const DEFAULT_MODEL = 'gemini-3.8-flash';
 
-// Запасные модели: если основная перегружена (503), пробуем их по очереди
-const FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash'];
+// Запасные модели: если основная не ответила, пробуем их по очереди
+const FALLBACK_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.6-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-3-flash-preview',
+];
+
+// С этими ошибками виновата конкретная модель, а не наш запрос — имеет смысл пойти к следующей:
+// 404 — модель недоступна, 429 — кончился её лимит, 500/503 — сбой или перегруз
+const TRY_NEXT_MODEL = [404, 429, 500, 503];
 
 // Общие правила стиля для всех объяснений. Подогнаны под Влада:
 // практик, не любит термины и воду, лучше понимает на примере.
@@ -41,30 +50,23 @@ export async function askGemini({ system, contents, temperature = 0.3 }) {
     },
   });
 
-  // 503 — модель перегружена. Пробуем её дважды, потом переходим к следующей модели.
+  // Идём по моделям по очереди, пока какая-нибудь не ответит
   let response;
-  search:
   for (const model of models) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body,
-      });
-      if (response.status !== 503) break search;
-      console.log(`[gemini] Модель ${model} перегружена, попытка ${attempt}`);
-      if (attempt === 1) await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body,
+    });
+    if (!TRY_NEXT_MODEL.includes(response.status)) break;
+    console.log(`[gemini] Модель ${model} не ответила (ошибка ${response.status}), пробую следующую`);
   }
 
   const data = await response.json().catch(() => ({}));
 
-  if (response.status === 503) {
-    throw new GeminiError('Все модели Gemini сейчас перегружены — это на стороне Google. Подожди минуту и нажми ещё раз.', 503);
-  }
-  if (response.status === 429) {
-    throw new GeminiError('Бесплатный лимит Gemini на эту минуту кончился. Подожди минуту и попробуй ещё раз.', 429);
+  if (TRY_NEXT_MODEL.includes(response.status)) {
+    console.log('[gemini] Ни одна модель не ответила. Последняя ошибка:', response.status, JSON.stringify(data.error || data));
+    throw new GeminiError('Ни одна модель Gemini сейчас не ответила — перегруз или кончился лимит. Подожди минуту и нажми ещё раз.', 503);
   }
   if (!response.ok) {
     console.log('[gemini] Ошибка от Google:', response.status, JSON.stringify(data.error || data));
