@@ -40,6 +40,13 @@ function renderCard(root, [word, ru, example], review) {
     } }, 'Не помню — показать слово'),
   );
 
+  // Пример спрятан, чтобы не подсматривать. Открывается по кнопке.
+  const exampleBox = h('div', { class: 'word-hidden' },
+    h('button', { class: 'btn ghost small-btn', type: 'button', onclick: () => {
+      exampleBox.replaceChildren(h('div', { class: 'example' }, example, ' ', speakButton(example)));
+    } }, 'Показать пример'),
+  );
+
   const head = review
     ? [
         h('div', { class: 'tag' }, 'Повторение'),
@@ -51,8 +58,8 @@ function renderCard(root, [word, ru, example], review) {
         h('div', { class: 'tag new' }, 'Новое слово'),
         h('div', { class: 'word-en' }, word, ' ', speakButton(word)),
         h('div', { class: 'word-ru' }, ru),
-        h('div', { class: 'example' }, example, ' ', speakButton(example)),
-        h('p', { class: 'muted' }, 'Составь своё предложение с этим словом. Не копируй пример.'),
+        exampleBox,
+        h('p', { class: 'muted' }, 'Составь своё предложение с этим словом.'),
       ];
 
   const form = h('form', {
