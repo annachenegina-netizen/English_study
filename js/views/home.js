@@ -48,5 +48,6 @@ export function renderHome(root) {
 
     h('p', { class: 'muted small center' },
       state.sync ? 'Прогресс сохраняется на сервере' : 'База не подключена — прогресс хранится только в этом браузере'),
+    h('p', { class: 'small center' }, h('a', { href: '#/status' }, 'Проверка ИИ')),
   );
 }

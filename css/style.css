@@ -218,6 +218,9 @@ mark { background: none; color: var(--ok); text-decoration: underline; text-unde
 .topic.done span:last-child { color: var(--ok); font-weight: 700; }
 .topic.locked { color: var(--muted); }
 
+.status-ok { color: var(--ok); font-weight: 700; }
+.status-bad { color: var(--bad); font-weight: 700; }
+
 .back { display: inline-block; margin-bottom: 12px; text-decoration: none; }
 
 .rule ul { padding-left: 20px; margin: 8px 0; }

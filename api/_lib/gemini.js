@@ -2,15 +2,21 @@
 
 // Модель по умолчанию. Если Google её переименует — задай GEMINI_MODEL в Vercel,
 // код менять не придётся.
-const DEFAULT_MODEL = 'gemini-3.8-flash';
+// Первой стоит лёгкая модель: проверка одного предложения — простая задача, тяжёлая тут не нужна.
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 
 // Запасные модели: если основная не ответила, пробуем их по очереди
 const FALLBACK_MODELS = [
-  'gemini-3.5-flash-lite',
-  'gemini-3.6-flash',
   'gemini-3.1-flash-lite',
+  'gemini-3.6-flash',
+  'gemini-3.8-flash',
   'gemini-3-flash-preview',
 ];
+
+// Полный список по порядку: основная, потом запасные
+export function modelList() {
+  return [...new Set([process.env.GEMINI_MODEL || DEFAULT_MODEL, ...FALLBACK_MODELS])];
+}
 
 // С этими ошибками виновата конкретная модель, а не наш запрос — имеет смысл пойти к следующей:
 // 404 — модель недоступна, 429 — кончился её лимит, 500/503 — сбой или перегруз
@@ -68,8 +74,7 @@ export async function askGemini({ system, contents, temperature = 0.3 }) {
     throw new GeminiError('На сервере не задан GEMINI_API_KEY', 500);
   }
 
-  // Список моделей по очереди: основная, потом запасные
-  const models = [...new Set([process.env.GEMINI_MODEL || DEFAULT_MODEL, ...FALLBACK_MODELS])];
+  const models = modelList();
 
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: system }] },

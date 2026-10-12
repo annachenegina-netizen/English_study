@@ -6,6 +6,7 @@ import { renderHome } from './views/home.js';
 import { renderWords } from './views/words.js';
 import { renderGrammarList, renderTopic } from './views/grammar.js';
 import { renderChat } from './views/chat.js';
+import { renderStatus } from './views/status.js';
 
 const app = document.getElementById('app');
 const nav = document.getElementById('nav');
@@ -20,6 +21,7 @@ function route() {
   else if (section === 'grammar' && param) renderTopic(view, param);
   else if (section === 'grammar') renderGrammarList(view);
   else if (section === 'chat') renderChat(view);
+  else if (section === 'status') renderStatus(view);
   else renderHome(view);
 
   app.replaceChildren(view);
