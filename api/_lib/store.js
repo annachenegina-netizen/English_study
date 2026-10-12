@@ -1,7 +1,17 @@
 // Хранилище прогресса: Upstash Redis через обычные HTTP-запросы (без библиотек).
 // Vercel сам добавляет адрес и токен в переменные, когда подключаешь базу.
-const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+// Ищем переменную по окончанию имени: Vercel может добавить к имени свою приставку
+function findEnv(...endings) {
+  for (const ending of endings) {
+    const name = Object.keys(process.env).find((key) => key.endsWith(ending));
+    if (name && process.env[name]) return process.env[name];
+  }
+  return '';
+}
+
+const url = findEnv('KV_REST_API_URL', 'REDIS_REST_URL');
+// Именно KV_REST_API_TOKEN: есть ещё ..._READ_ONLY_TOKEN, он только для чтения и нам не подходит
+const token = findEnv('KV_REST_API_TOKEN', 'REDIS_REST_TOKEN');
 
 // Если базы нет — сервис всё равно работает, просто прогресс живёт только в браузере
 export const hasStore = Boolean(url && token);
