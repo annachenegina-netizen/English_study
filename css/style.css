@@ -296,3 +296,17 @@ mark { background: none; color: var(--ok); text-decoration: underline; text-unde
 
 .chat-form .input { margin: 0; }
 .chat-form .btn { width: 56px; margin: 0; flex: none; }
+
+/* ---------- Полоска «вышло обновление» ---------- */
+
+.update-bar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 10;
+  padding: 10px 16px;
+  background: var(--accent);
+  color: var(--accent-text);
+  text-align: center;
+  font-size: 15px;
+}
+.update-bar .btn { background: var(--accent-text); color: var(--accent); margin-left: 8px; }

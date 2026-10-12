@@ -33,7 +33,8 @@ function readLocal() {
 }
 
 // Общее состояние. sync — подключена ли база на сервере.
-export const state = { progress: readLocal(), sync: false };
+// version — версия сайта на сервере; outdated — на сервере уже новее, чем открыто во вкладке
+export const state = { progress: readLocal(), sync: false, version: '', outdated: false };
 
 // Дата в виде 2026-10-12 по местному времени
 function dateKey(date = new Date()) {
@@ -67,6 +68,11 @@ async function push() {
 export async function pull() {
   const data = await api('/api/progress');
   state.sync = Boolean(data.sync);
+  // Первая версия, которую увидели, — та, что сейчас открыта. Пришла другая — вышло обновление.
+  if (data.version) {
+    if (!state.version) state.version = data.version;
+    else if (state.version !== data.version) state.outdated = true;
+  }
   const remote = data.progress;
 
   if (remote && (remote.updatedAt || 0) > (state.progress.updatedAt || 0)) {

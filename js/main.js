@@ -1,7 +1,7 @@
 // Точка входа: вход по паролю, переключение разделов.
 import { h } from './dom.js';
 import { api, getToken, setToken, hashPassword } from './api.js';
-import { pull } from './store.js';
+import { pull, state } from './store.js';
 import { renderHome } from './views/home.js';
 import { renderWords } from './views/words.js';
 import { renderGrammarList, renderTopic } from './views/grammar.js';
@@ -73,18 +73,34 @@ function start() {
 
 window.addEventListener('hashchange', () => { if (getToken()) route(); });
 
-// Вернулся во вкладку (например, после занятий на телефоне) — подтягиваем свежий прогресс
-document.addEventListener('visibilitychange', async () => {
-  if (document.visibilityState !== 'visible' || !getToken()) return;
+// Полоска «вышло обновление». Без неё во вкладке может днями висеть старая версия сайта.
+function showUpdateBar() {
+  if (document.getElementById('update-bar')) return;
+  document.body.append(h('div', { id: 'update-bar', class: 'update-bar' },
+    'Вышло обновление. ',
+    h('button', { class: 'btn small-btn', type: 'button', onclick: () => location.reload() }, 'Обновить'),
+  ));
+}
+
+// Подтягивает свежий прогресс (например, после занятий на телефоне) и проверяет версию сайта
+async function refresh() {
+  if (!getToken()) return;
   try {
     const changed = await pull();
+    if (state.outdated) showUpdateBar();
     // Чат и открытый урок не перерисовываем, чтобы не сбить ввод
     const section = location.hash.split('/')[1];
     if (changed && (section === 'home' || !section)) route();
   } catch (error) {
     console.log('[main] Не удалось обновить прогресс:', error.message);
   }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refresh();
 });
+// И раз в две минуты, пока вкладка открыта
+setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 120000);
 
 async function boot() {
   if (!getToken()) return showLogin();

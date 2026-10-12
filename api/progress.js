@@ -5,6 +5,8 @@ import { hasStore, getJson, setJson } from './_lib/store.js';
 
 const KEY = 'english-trainer:progress';
 const MAX_SIZE = 300_000; // защита от случайной записи чего-то огромного
+// Номер версии сайта: Vercel сам кладёт сюда хеш коммита при каждом деплое
+const VERSION = process.env.VERCEL_GIT_COMMIT_SHA || 'dev';
 
 export default async function handler(req, res) {
   if (!checkAuth(req, res)) return;
@@ -12,7 +14,7 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const progress = hasStore ? await getJson(KEY) : null;
-      return res.status(200).json({ progress, sync: hasStore });
+      return res.status(200).json({ progress, sync: hasStore, version: VERSION });
     }
 
     if (req.method === 'PUT') {
