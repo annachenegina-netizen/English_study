@@ -207,7 +207,13 @@ mark { background: none; color: var(--ok); text-decoration: underline; text-unde
 .reference-title { margin-top: 12px; font-weight: 700; }
 .reference .rule p { margin: 8px 0; }
 .reference .rule .formula, .reference .rule .trap { background: var(--card); }
-.rule-ai { white-space: pre-line; }
+.literal { color: var(--muted); }
+.literal b { color: var(--text); }
+
+/* Маленькая таблица в справке */
+.mini { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 15px; }
+.mini th, .mini td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); }
+.mini th { color: var(--muted); font-weight: 500; }
 
 /* Шаблон для запоминания и примеры к нему */
 .pattern {

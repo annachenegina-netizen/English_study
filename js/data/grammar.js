@@ -6,6 +6,33 @@
 // Справка по частым ошибкам, которых нет среди тем курса.
 // Показывается по кнопке «Справка» под разбором ошибки.
 export const EXTRA_RULES = {
+  my_your: {
+    title: 'you — ты, your — твой',
+    forAi: 'wrong pronoun form: you/your, I/my/me, he/his/him, she/her, we/our/us, they/their/them',
+    html: `
+      <p>В русском «ты» и «твой» — разные слова. В английском тоже: <b>you</b> — ты, <b>your</b> — твой.</p>
+      <p>Перед вещью всегда стоит слово из колонки «чей».</p>
+      <table class="mini">
+        <tr><th>кто</th><th>чей</th><th>кого / кому</th></tr>
+        <tr><td>I — я</td><td><b>my</b> — мой</td><td>me — меня, мне</td></tr>
+        <tr><td>you — ты</td><td><b>your</b> — твой</td><td>you — тебя, тебе</td></tr>
+        <tr><td>he — он</td><td><b>his</b> — его</td><td>him — его, ему</td></tr>
+        <tr><td>she — она</td><td><b>her</b> — её</td><td>her — её, ей</td></tr>
+        <tr><td>we — мы</td><td><b>our</b> — наш</td><td>us — нас, нам</td></tr>
+        <tr><td>they — они</td><td><b>their</b> — их</td><td>them — их, им</td></tr>
+      </table>
+      <ul>
+        <li>I take <b>your</b> car. — Я беру <b>твою</b> машину.</li>
+        <li>I see <b>you</b>. — Я вижу <b>тебя</b>.</li>
+        <li>He helps <b>me</b>. — Он помогает <b>мне</b>.</li>
+      </ul>
+      <p class="trap">Проверка: переведи слово на русский. «Ты машина» звучит криво — значит нужно «твоя», your.</p>`,
+  },
+  spelling: {
+    title: 'Опечатка',
+    forAi: 'only a spelling mistake or typo, grammar is fine',
+    html: `<p>Грамматика тут в порядке, ошибка только в написании слова. Посмотри на подсвеченное слово и запомни, как оно пишется.</p>`,
+  },
   to_verb: {
     title: 'to между двумя действиями',
     forAi: 'missing "to" between two verbs: want to go, need to buy, like to read',

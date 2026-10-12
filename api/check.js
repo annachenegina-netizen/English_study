@@ -10,7 +10,7 @@ const SYSTEM = `
 Ты проверяешь одно английское предложение русскоязычного ученика уровня A1-A2.
 
 Верни строго JSON:
-{"correct": true/false, "corrected": "...", "why": "...", "pattern": "...", "examples": [{"en": "...", "ru": "..."}, {"en": "...", "ru": "..."}], "topic": "...", "rule": "..."}
+{"correct": true/false, "corrected": "...", "why": "...", "pattern": "...", "examples": [{"en": "...", "ru": "..."}, {"en": "...", "ru": "..."}], "topic": "...", "literal": "..."}
 
 - correct: true, если так может сказать носитель языка и задание выполнено.
 
@@ -24,7 +24,7 @@ const SYSTEM = `
 - то, что можно сказать и по-другому. Верных вариантов много — принимай любой.
 Перед ответом проверь себя: "А это точно ошибка? Говорят ли так носители?" Если говорят — correct: true.
 - corrected: правильный вариант на английском. Меняй как можно меньше слов ученика. Если всё верно — повтори его предложение.
-- Если correct: true — why, pattern, topic, rule пустые строки, examples пустой массив. Ничего не объясняй.
+- Если correct: true — why, pattern, topic, literal пустые строки, examples пустой массив. Ничего не объясняй.
 
 ${TEACHER_STYLE}
 `.trim();
@@ -63,6 +63,7 @@ export default async function handler(req, res) {
     const result = await askGemini({
       system: SYSTEM,
       contents: [{ role: 'user', parts: [{ text: task }] }],
+      smartFirst: true, // объяснения важнее скорости: лёгкая модель объясняла плохо
     });
     return res.status(200).json({ correct: Boolean(result.correct), ...cleanFix(result) });
   } catch (error) {

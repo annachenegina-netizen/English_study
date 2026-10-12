@@ -49,7 +49,7 @@ function highlighted(corrected, original) {
 }
 
 // Справка по теме ошибки. Текст правила — наш, написанный вручную (data/grammar.js),
-// а не придуманный моделью. Если тема не из списка — показываем короткую справку от модели.
+// а не придуманный моделью. Если тема не из списка — показываем только шаблон и примеры.
 function reference(fix) {
   const topic = TOPICS.find((item) => item.id === fix.topic) || EXTRA_RULES[fix.topic];
   return h('div', { class: 'reference' },
@@ -60,15 +60,14 @@ function reference(fix) {
       : null,
     topic ? h('div', { class: 'reference-title' }, topic.title) : null,
     topic ? h('div', { class: 'rule', html: topic.html }) : null,
-    !topic && fix.rule ? h('p', { class: 'rule-ai' }, fix.rule) : null,
   );
 }
 
 // Разбор ошибки: сразу видно, где ошибка и одной строкой почему.
 // Подробности (шаблон, примеры, правило) — по кнопке «Справка».
-// fix — { corrected, why, pattern, examples, topic, rule }, original — что написал ученик.
+// fix — { corrected, literal, why, pattern, examples, topic }, original — что написал ученик.
 export function fixDetails(fix, original) {
-  const hasReference = fix.pattern || fix.examples?.length || fix.rule || (fix.topic && fix.topic !== 'other');
+  const hasReference = fix.pattern || fix.examples?.length || (fix.topic && fix.topic !== 'other');
   const panel = h('div');
   const button = h('button', { class: 'info-btn', type: 'button', onclick: () => {
     const open = panel.childElementCount > 0;
@@ -78,6 +77,7 @@ export function fixDetails(fix, original) {
 
   return [
     h('div', { class: 'result-fix' }, ...highlighted(fix.corrected, original), speakButton(fix.corrected)),
+    fix.literal ? h('p', { class: 'literal' }, 'У тебя получилось: ', h('b', null, `«${fix.literal}»`)) : null,
     fix.why || fix.explanation ? h('p', null, fix.why || fix.explanation) : null,
     hasReference ? button : null,
     panel,
