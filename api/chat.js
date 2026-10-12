@@ -1,0 +1,70 @@
+// POST /api/chat — разговорная практика.
+// ИИ задаёт вопрос, ученик отвечает, ИИ исправляет ответ и задаёт следующий вопрос.
+import { checkAuth } from './_lib/auth.js';
+import { askGemini, TEACHER_STYLE } from './_lib/gemini.js';
+
+const MAX_MESSAGES = 12; // сколько последних реплик отправляем модели — экономим токены
+const MAX_LENGTH = 400;
+
+function buildSystem({ level, maxLevel, topics, words }) {
+  return `
+You are a friendly English conversation partner for a Russian-speaking learner.
+
+Learner level: ${level} of ${maxLevel} (1 = absolute beginner A1, ${maxLevel} = A2+).
+Grammar the learner already knows: ${topics.length ? topics.join('; ') : 'only "to be" (am / is / are)'}.
+Words the learner has learned (reuse some of them naturally): ${words.length ? words.join(', ') : 'very basic words only'}.
+
+Rules for your reply:
+- Use ONLY the grammar listed above and very common everyday words. Never use structures the learner has not studied.
+- First react to the learner's answer in one short sentence, then ask ONE new question. Two short sentences maximum.
+- Start with very simple questions. Make each next question a little harder than the previous one, but stay inside the known grammar.
+- Talk about everyday life and work: job, day, plans, city, food, hobbies, colleagues.
+- If the conversation has not started yet, just greet the learner and ask the first simple question.
+
+Also check the learner's LAST message and return strictly JSON:
+{"reply": "your reaction and next question in English", "fix": null}
+or, if the last message has a mistake:
+{"reply": "...", "fix": {"corrected": "the correct English sentence", "explanation": "объяснение на русском"}}
+
+- fix is null when the message is correct (ignore capital letters and final punctuation) or when there is no learner message yet.
+- If the learner wrote in Russian, put the English version into fix.corrected and continue the conversation.
+
+Правила для fix.explanation:
+${TEACHER_STYLE}
+`.trim();
+}
+
+export default async function handler(req, res) {
+  if (!checkAuth(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Метод не поддерживается' });
+
+  const body = req.body || {};
+  const history = Array.isArray(body.history) ? body.history.slice(-MAX_MESSAGES) : [];
+
+  // Gemini требует, чтобы диалог начинался с реплики пользователя
+  const contents = [{ role: 'user', parts: [{ text: 'Start the conversation.' }] }];
+  for (const message of history) {
+    contents.push({
+      role: message.role === 'user' ? 'user' : 'model',
+      parts: [{ text: String(message.text || '').slice(0, MAX_LENGTH) }],
+    });
+  }
+
+  const system = buildSystem({
+    level: Number(body.level) || 1,
+    maxLevel: Number(body.maxLevel) || 6,
+    topics: (Array.isArray(body.topics) ? body.topics : []).slice(0, 20).map(String),
+    words: (Array.isArray(body.words) ? body.words : []).slice(0, 40).map(String),
+  });
+
+  try {
+    const result = await askGemini({ system, contents, temperature: 0.7 });
+    const fix = result.fix && result.fix.corrected
+      ? { corrected: String(result.fix.corrected), explanation: String(result.fix.explanation || '') }
+      : null;
+    return res.status(200).json({ reply: String(result.reply || ''), fix });
+  } catch (error) {
+    console.log('[chat] Ответ в чате не получен:', error.message);
+    return res.status(error.status || 500).json({ error: error.message });
+  }
+}

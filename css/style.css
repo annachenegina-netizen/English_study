@@ -1,0 +1,263 @@
+/* Цвета. Тёмная тема включается сама по настройке телефона/компьютера. */
+:root {
+  --bg: #f6f5f1;
+  --card: #ffffff;
+  --text: #1c1d1f;
+  --muted: #6d7078;
+  --line: #e4e2db;
+  --accent: #2f5bea;
+  --accent-text: #ffffff;
+  --ok: #1d8a4e;
+  --ok-bg: #e7f5ec;
+  --bad: #c0392b;
+  --bad-bg: #fbeae7;
+  --warn-bg: #fff5d6;
+  --chip: #eef0f6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a;
+    --card: #1f2226;
+    --text: #eceef1;
+    --muted: #9aa0aa;
+    --line: #30343a;
+    --accent: #6f8fff;
+    --accent-text: #0f1115;
+    --ok: #5fd08c;
+    --ok-bg: #1b2f23;
+    --bad: #ff8a7a;
+    --bad-bg: #36201d;
+    --warn-bg: #33301f;
+    --chip: #2a2e35;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+[hidden] { display: none !important; }
+
+h1 { font-size: 28px; margin: 0 0 4px; }
+h2 { font-size: 21px; margin: 0 0 10px; line-height: 1.3; }
+p { margin: 10px 0; }
+a { color: var(--accent); }
+
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.center { text-align: center; }
+.error { color: var(--bad); margin-top: 10px; }
+
+/* ---------- Каркас ---------- */
+
+.view {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 16px 16px calc(96px + env(safe-area-inset-bottom));
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 12px;
+}
+
+.nav {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  display: flex;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.nav a {
+  flex: 1;
+  text-align: center;
+  padding: 14px 4px;
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.nav a.active { color: var(--accent); font-weight: 600; }
+
+/* ---------- Кнопки и поля ---------- */
+
+.btn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+.btn.small-btn { display: inline-block; width: auto; margin: 0; padding: 8px 12px; font-size: 14px; font-weight: 500; }
+
+.icon-btn {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  font-size: 16px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.input {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  resize: none;
+}
+
+.input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* ---------- Вход ---------- */
+
+.login { padding-top: 18vh; }
+
+/* ---------- Главная ---------- */
+
+.hero-top { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; }
+.hero-level { font-size: 34px; font-weight: 700; line-height: 1.1; }
+.streak { color: var(--muted); font-size: 14px; }
+.streak-num { font-size: 22px; font-weight: 700; color: var(--text); }
+
+.bar-row { margin-top: 12px; }
+.bar-label { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
+.bar { height: 8px; background: var(--chip); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+
+.link-card { display: block; text-decoration: none; color: inherit; }
+.link-title { font-size: 19px; font-weight: 600; }
+
+/* ---------- Слова ---------- */
+
+.tag {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.tag.new { color: var(--accent); }
+
+.word-en { font-size: 32px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.word-ru { font-size: 18px; color: var(--muted); }
+.word-ru.big { font-size: 26px; font-weight: 700; color: var(--text); }
+.word-hidden { margin-top: 10px; }
+.example { margin-top: 12px; padding: 10px 12px; background: var(--bg); border-radius: 10px; }
+
+/* ---------- Результат проверки ---------- */
+
+.result { margin-top: 14px; padding: 12px 14px; border-radius: 12px; }
+.result.ok { background: var(--ok-bg); }
+.result.bad { background: var(--bad-bg); }
+.result-title { font-weight: 700; }
+.result.ok .result-title { color: var(--ok); }
+.result.bad .result-title { color: var(--bad); }
+.result-fix { font-weight: 600; margin-top: 4px; overflow-wrap: anywhere; }
+.result p { margin: 6px 0 0; }
+.result-tip { font-size: 15px; }
+
+/* ---------- Грамматика ---------- */
+
+.topic {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+
+.topic.done span:last-child { color: var(--ok); font-weight: 700; }
+.topic.locked { color: var(--muted); }
+
+.back { display: inline-block; margin-bottom: 12px; text-decoration: none; }
+
+.rule ul { padding-left: 20px; margin: 8px 0; }
+.rule li { margin: 4px 0; }
+.rule .formula {
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 10px;
+  font-weight: 600;
+  text-align: center;
+}
+.rule .trap { padding: 10px 12px; background: var(--warn-bg); border-radius: 10px; }
+
+.task-ru { font-size: 20px; font-weight: 600; margin: 4px 0 12px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 46px; padding: 6px 0; }
+.chips.answer { border-bottom: 2px solid var(--line); margin-bottom: 10px; }
+
+.chip {
+  padding: 9px 13px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--chip);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ---------- Чат ---------- */
+
+.view-chat { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+
+.chat-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+
+.messages { display: flex; flex-direction: column; gap: 10px; }
+
+.msg { max-width: 86%; padding: 10px 14px; border-radius: 16px; overflow-wrap: anywhere; }
+.msg.ai { align-self: flex-start; background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.msg-wrap { align-self: flex-end; max-width: 86%; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.msg.user { max-width: 100%; background: var(--accent); color: var(--accent-text); border-bottom-right-radius: 4px; }
+.msg-fix { padding: 8px 12px; border-radius: 12px; background: var(--bad-bg); font-size: 15px; }
+.msg-fix p { margin: 4px 0 0; }
+
+.chat-form {
+  position: fixed;
+  left: 0; right: 0;
+  bottom: calc(50px + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 8px;
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 8px 16px;
+  background: var(--bg);
+}
+
+.chat-form .input { margin: 0; }
+.chat-form .btn { width: 56px; margin: 0; flex: none; }
