@@ -9,7 +9,6 @@ const DAY = 24 * 60 * 60 * 1000;
 // Через сколько дней слово вернётся на повторение. Индекс — «ступень» слова.
 export const INTERVALS = [0, 1, 3, 7, 14, 30];
 export const MAX_LEVEL = WORD_LEVELS.length;
-export const NEW_WORDS_PER_DAY = 7;
 const CHAT_LIMIT = 40; // сколько сообщений чата храним
 
 function emptyProgress() {
@@ -19,7 +18,6 @@ function emptyProgress() {
     grammar: {},    // { be: { done: true } }
     chat: [],       // [{ role: 'ai' | 'user', text, fix }]
     streak: { last: '', count: 0 },
-    day: { date: '', newCount: 0 },
   };
 }
 
@@ -141,15 +139,9 @@ export function allComplete() {
 
 // ---------- Слова ----------
 
-function todayCounter() {
-  const today = dateKey();
-  if (state.progress.day.date !== today) state.progress.day = { date: today, newCount: 0 };
-  return state.progress.day;
-}
-
-// Слова, доступные на текущем уровне
+// Слова идут подряд по всем уровням и не ждут грамматику: учи сколько хочешь
 function availableWords() {
-  return WORD_LEVELS.slice(0, currentLevel()).flat();
+  return WORD_LEVELS.flat();
 }
 
 export function dueCount() {
@@ -160,9 +152,8 @@ export function dueCount() {
   }).length;
 }
 
-// Следующее слово: сначала повторения, потом новые (в пределах дневной нормы).
-// extra — сколько новых слов сверх нормы ученик попросил в этой сессии.
-export function nextWord(extra = 0) {
+// Следующее слово: сначала повторения, потом новые. Лимита на день нет.
+export function nextWord() {
   const now = Date.now();
   const pool = availableWords();
 
@@ -176,7 +167,6 @@ export function nextWord(extra = 0) {
 
   const fresh = pool.find((word) => !isLearned(word[0]));
   if (!fresh) return { empty: 'no-words' };
-  if (todayCounter().newCount >= NEW_WORDS_PER_DAY + extra) return { empty: 'day-limit' };
   return { word: fresh, review: false };
 }
 
@@ -188,7 +178,6 @@ export function recordWord(word, correct) {
   if (correct) {
     saved.stage = Math.min(saved.stage + 1, INTERVALS.length - 1);
     saved.due = Date.now() + INTERVALS[saved.stage] * DAY;
-    if (wasNew) todayCounter().newCount += 1;
   } else if (!wasNew) {
     // Ошибся на повторении — откатываем на ступень назад и спросим снова в этой же сессии
     saved.stage = Math.max(1, saved.stage - 1);
@@ -198,6 +187,20 @@ export function recordWord(word, correct) {
   state.progress.words[word] = saved;
   touchStreak();
   save();
+}
+
+// Кнопка «Уже знаю»: слово сразу считается выученным и придёт на проверку через месяц
+export function markKnown(word) {
+  const stage = INTERVALS.length - 1;
+  state.progress.words[word] = { stage, due: Date.now() + INTERVALS[stage] * DAY };
+  touchStreak();
+  save();
+}
+
+// Сколько слов выучено и сколько всего
+export function wordTotals() {
+  const all = WORD_LEVELS.flat();
+  return { learned: all.filter((word) => isLearned(word[0])).length, total: all.length };
 }
 
 // ---------- Грамматика ----------

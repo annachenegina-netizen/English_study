@@ -28,5 +28,4 @@
 | Темы грамматики и задания | `js/data/grammar.js` |
 | Как ИИ объясняет ошибки | `api/_lib/gemini.js`, блок `TEACHER_STYLE` |
 | Поведение ИИ в чате | `api/chat.js` |
-| Дневная норма новых слов | `js/store.js`, `NEW_WORDS_PER_DAY` |
 | Модель Gemini | переменная `GEMINI_MODEL` или `DEFAULT_MODEL` в `api/_lib/gemini.js` |
