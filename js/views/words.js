@@ -80,7 +80,7 @@ function renderCard(root, [word, ru, example], review) {
         const result = await api('/api/check', { method: 'POST', body: { mode: 'word', word, ru, answer } });
         recordWord(word, result.correct);
         feedback.replaceChildren(
-          resultBox(result),
+          resultBox(result, answer),
           result.correct
             ? h('button', { class: 'btn', type: 'button', onclick: () => rerender(root) }, 'Дальше')
             : h('p', { class: 'muted' }, 'Исправь предложение и проверь ещё раз.'),

@@ -2,7 +2,7 @@
 // mode: 'word'      — предложение с заданным словом (раздел «Слова»)
 // mode: 'translate' — перевод русского предложения (раздел «Грамматика»)
 import { checkAuth } from './_lib/auth.js';
-import { askGemini, TEACHER_STYLE } from './_lib/gemini.js';
+import { askGemini, TEACHER_STYLE, cleanExamples } from './_lib/gemini.js';
 
 const MAX_LENGTH = 300;
 
@@ -10,12 +10,11 @@ const SYSTEM = `
 Ты проверяешь одно английское предложение русскоязычного ученика уровня A1-A2.
 
 Верни строго JSON:
-{"correct": true/false, "corrected": "...", "explanation": "...", "tip": "..."}
+{"correct": true/false, "corrected": "...", "why": "...", "pattern": "...", "examples": [{"en": "...", "ru": "..."}, {"en": "...", "ru": "..."}]}
 
 - correct: true, только если предложение грамматически верное и выполняет задание. Заглавные буквы и точку в конце не считай ошибкой.
 - corrected: правильный вариант на английском. Меняй как можно меньше слов ученика. Если всё верно — повтори его предложение.
-- explanation: если есть ошибка — объясни её. Если ошибки нет — одна короткая фраза, почему так правильно (что именно он сделал верно).
-- tip: как это сказал бы носитель в обычной речи, если есть вариант естественнее. Если нет — пустая строка.
+- Если correct: true — why и pattern пустые строки, examples пустой массив. Ничего не объясняй.
 
 ${TEACHER_STYLE}
 `.trim();
@@ -58,8 +57,9 @@ export default async function handler(req, res) {
     return res.status(200).json({
       correct: Boolean(result.correct),
       corrected: String(result.corrected || ''),
-      explanation: String(result.explanation || ''),
-      tip: String(result.tip || ''),
+      why: String(result.why || ''),
+      pattern: String(result.pattern || ''),
+      examples: cleanExamples(result.examples),
     });
   } catch (error) {
     console.log('[check] Проверка не удалась:', error.message);

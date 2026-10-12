@@ -166,7 +166,7 @@ export function renderTopic(root, id) {
           submit.hidden = true;
           input.disabled = true;
           feedback.replaceChildren(
-            resultBox(result),
+            resultBox(result, answer),
             h('button', { class: 'btn', type: 'button', onclick: showNext }, 'Дальше'),
           );
         } catch (error) {

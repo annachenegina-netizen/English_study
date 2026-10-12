@@ -33,14 +33,41 @@ export function speakButton(text) {
   return h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Прослушать', onclick: () => speak(text) }, '🔊');
 }
 
-// Блок с результатом проверки от ИИ: верно/неверно, исправление, объяснение
-export function resultBox(result) {
-  return h('div', { class: `result ${result.correct ? 'ok' : 'bad'}` },
-    h('div', { class: 'result-title' }, result.correct ? '✓ Верно' : '✗ Есть ошибка'),
-    !result.correct && result.corrected
-      ? h('div', { class: 'result-fix' }, result.corrected, ' ', speakButton(result.corrected))
+// Исправленное предложение, в котором подсвечены слова, которых не было у ученика
+function highlighted(corrected, original) {
+  const normalize = (word) => word.toLowerCase().replace(/[^a-z']/g, '');
+  const had = (original || '').split(/\s+/).map(normalize);
+  return corrected.split(/\s+/).flatMap((word) => {
+    const index = had.indexOf(normalize(word));
+    if (index >= 0) {
+      had.splice(index, 1); // каждое слово ученика засчитываем один раз
+      return [word, ' '];
+    }
+    return [h('mark', null, word), ' '];
+  });
+}
+
+// Разбор ошибки: как правильно → почему → шаблон → два примера.
+// fix — { corrected, why, pattern, examples }, original — что написал ученик.
+export function fixDetails(fix, original) {
+  return [
+    h('div', { class: 'result-fix' }, ...highlighted(fix.corrected, original), speakButton(fix.corrected)),
+    fix.why || fix.explanation ? h('p', null, fix.why || fix.explanation) : null,
+    fix.pattern ? h('div', { class: 'pattern' }, fix.pattern) : null,
+    fix.examples?.length
+      ? h('ul', { class: 'examples' }, fix.examples.map((example) =>
+          h('li', null, h('b', null, example.en), example.ru ? ` — ${example.ru}` : '')))
       : null,
-    result.explanation ? h('p', null, result.explanation) : null,
-    result.tip ? h('p', { class: 'result-tip' }, 'В живой речи: ', h('b', null, result.tip)) : null,
+  ];
+}
+
+// Блок с результатом проверки от ИИ
+export function resultBox(result, original) {
+  if (result.correct) {
+    return h('div', { class: 'result ok' }, h('div', { class: 'result-title' }, '✓ Верно'));
+  }
+  return h('div', { class: 'result bad' },
+    h('div', { class: 'result-title' }, '✗ Есть ошибка'),
+    ...fixDetails(result, original),
   );
 }

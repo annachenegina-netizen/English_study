@@ -1,5 +1,5 @@
 // Раздел «Чат»: ИИ задаёт вопросы, ученик отвечает, ошибки разбираются под его сообщением.
-import { h, speakButton } from '../dom.js';
+import { h, speakButton, fixDetails } from '../dom.js';
 import { api } from '../api.js';
 import { state, addChatMessage, clearChat, knowledge } from '../store.js';
 
@@ -20,10 +20,7 @@ export function renderChat(root) {
     return h('div', { class: 'msg-wrap' },
       h('div', { class: 'msg user' }, message.text),
       message.fix
-        ? h('div', { class: 'msg-fix' },
-            h('div', { class: 'result-fix' }, message.fix.corrected, ' ', speakButton(message.fix.corrected)),
-            message.fix.explanation ? h('p', null, message.fix.explanation) : null,
-          )
+        ? h('div', { class: 'msg-fix' }, ...fixDetails(message.fix, message.text))
         : null,
     );
   }

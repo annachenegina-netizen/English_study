@@ -187,7 +187,21 @@ a { color: var(--accent); }
 .result.bad .result-title { color: var(--bad); }
 .result-fix { font-weight: 600; margin-top: 4px; overflow-wrap: anywhere; }
 .result p { margin: 6px 0 0; }
-.result-tip { font-size: 15px; }
+
+/* Подсветка слова, которое исправили */
+mark { background: none; color: var(--ok); text-decoration: underline; text-underline-offset: 3px; }
+
+/* Шаблон для запоминания и примеры к нему */
+.pattern {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--card);
+  font-weight: 600;
+  text-align: center;
+}
+.examples { margin: 8px 0 0; padding-left: 20px; font-size: 15px; }
+.examples li { margin: 2px 0; }
 
 /* ---------- Грамматика ---------- */
 
