@@ -83,10 +83,13 @@ export function renderTopic(root, id) {
 
   // Задание 1: собрать предложение из перемешанных слов. Проверяем сами, ИИ не нужен.
   function orderTask(task) {
-    const words = task.en.split(' ');
+    // Первое слово пишем с маленькой буквы, иначе заглавная выдаёт начало предложения.
+    // «I» оставляем как есть — оно всегда заглавное.
+    const words = task.en.split(' ').map((text, index) =>
+      (index === 0 && text !== 'I' ? text[0].toLowerCase() + text.slice(1) : text));
     let pool = shuffle(words.map((text, index) => ({ text, index })));
     // Если случайно перемешалось в правильный порядок — мешаем ещё раз
-    if (pool.map((chip) => chip.text).join(' ') === task.en && words.length > 1) pool = pool.reverse();
+    if (pool.map((chip) => chip.text).join(' ') === words.join(' ') && words.length > 1) pool = pool.reverse();
     let picked = [];
 
     const answerRow = h('div', { class: 'chips answer' });
@@ -112,7 +115,7 @@ export function renderTopic(root, id) {
 
     checkButton.addEventListener('click', () => {
       const answer = picked.map((chip) => chip.text).join(' ');
-      if (answer === task.en) {
+      if (answer === words.join(' ')) {
         feedback.replaceChildren(
           h('div', { class: 'result ok' },
             h('div', { class: 'result-title' }, '✓ Верно'),
