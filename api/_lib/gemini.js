@@ -23,8 +23,9 @@ export function modelList() {
 // 404 — модель недоступна, 429 — кончился её лимит, 500/503 — сбой или перегруз
 const TRY_NEXT_MODEL = [404, 429, 500, 503];
 
-const MODEL_TIMEOUT = 12000; // сколько ждём одну модель, мс
-const TOTAL_TIMEOUT = 40000; // сколько ждём всего, мс
+const STAGGER = 4000;        // через сколько мс молчания запускаем следующую модель параллельно
+const MODEL_TIMEOUT = 20000; // сколько максимум ждём одну модель, мс
+const TOTAL_TIMEOUT = 30000; // сколько ждём всего, мс
 
 // Общие правила стиля для всех объяснений. Подогнаны под Влада:
 // практик, не любит термины и воду, лучше понимает на примере.
@@ -143,69 +144,125 @@ export async function askGemini({ system, contents, temperature = 0.3, smartFirs
   }
 
   const all = modelList();
-  const models = smartFirst
-    ? [...all.filter((model) => !model.includes('lite')), ...all.filter((model) => model.includes('lite'))]
-    : all;
+  // smartFirst: первой идёт сильная модель, а сразу за ней быстрая лёгкая как страховка.
+  // Если сильная молчит 4 секунды, параллельно стартует лёгкая — долго ждать не придётся.
+  const smart = all.filter((model) => !model.includes('lite'));
+  const lite = all.filter((model) => model.includes('lite'));
+  const models = smartFirst ? [smart[0], lite[0], ...smart.slice(1), ...lite.slice(1)].filter(Boolean) : all;
 
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: system }] },
-    contents,
-    generationConfig: {
-      temperature,
-      responseMimeType: 'application/json',
-      maxOutputTokens: 8000, // с запасом: «думающие» модели тратят часть лимита на размышления
-    },
+  const generationConfig = {
+    temperature,
+    responseMimeType: 'application/json',
+    maxOutputTokens: 8000, // с запасом: «думающие» модели тратят часть лимита на размышления
+  };
+  const request = { systemInstruction: { parts: [{ text: system }] }, contents };
+
+  // Два варианта запроса. Основной просит модель «думать» по минимуму: по умолчанию она
+  // размышляет по 10-30 секунд, а для проверки одного предложения это не нужно.
+  // Запасной — без этой настройки, на случай если модель её не понимает.
+  const bodies = {
+    fast: JSON.stringify({ ...request, generationConfig: { ...generationConfig, thinkingConfig: { thinkingLevel: 'low' } } }),
+    plain: JSON.stringify({ ...request, generationConfig }),
+  };
+
+  // Гонка моделей: запускаем первую, и если за STAGGER она не ответила — параллельно следующую.
+  // Берём первый нормальный ответ, остальные запросы обрываем. Так одна зависшая модель не тормозит всех.
+  return new Promise((resolve, reject) => {
+    const stopAll = new AbortController();
+    let next = 0;        // какую модель запускать следующей
+    let running = 0;     // сколько запросов сейчас в полёте
+    let finished = false;
+    let lastProblem = 'нет ответа';
+    let staggerTimer;
+
+    const finish = (settle, value) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(staggerTimer);
+      clearTimeout(totalTimer);
+      stopAll.abort();
+      settle(value);
+    };
+
+    const fail = () => finish(reject, new GeminiError(
+      `Ни одна модель Gemini сейчас не дала ответ (${lastProblem}). Подожди минуту и нажми ещё раз.`, 503));
+
+    const launch = () => {
+      if (finished || next >= models.length) return;
+      const model = models[next++];
+      running++;
+      clearTimeout(staggerTimer);
+      staggerTimer = setTimeout(launch, STAGGER);
+
+      callModel(model, key, bodies, stopAll.signal).then((outcome) => {
+        running--;
+        if (finished) return;
+        if (outcome.result) return finish(resolve, outcome.result);
+        // Ошибка в самом запросе или ключе — другая модель тут не поможет
+        if (outcome.fatal) return finish(reject, outcome.fatal);
+
+        lastProblem = outcome.problem;
+        console.log(`[gemini] ${lastProblem}, пробую следующую`);
+        if (next < models.length) launch();
+        else if (running === 0) fail();
+      });
+    };
+
+    const totalTimer = setTimeout(() => {
+      lastProblem = `никто не ответил за ${TOTAL_TIMEOUT / 1000} с`;
+      fail();
+    }, TOTAL_TIMEOUT);
+
+    launch();
   });
+}
 
-  // Идём по моделям по очереди, пока какая-нибудь не даст нормальный ответ.
-  // Каждой модели даём MODEL_TIMEOUT. Молчит, упала или прислала мусор — идём к следующей.
-  let lastProblem = 'нет ответа';
-  const deadline = Date.now() + TOTAL_TIMEOUT;
-  for (const model of models) {
-    if (Date.now() + MODEL_TIMEOUT > deadline) break;
-
-    let response;
-    let data = {};
-    try {
+// Один запрос к одной модели. Никогда не бросает ошибку, возвращает один из вариантов:
+// { result } — нормальный ответ, { problem } — эта модель не справилась, { fatal } — ошибка запроса.
+async function callModel(model, key, bodies, stopSignal) {
+  let response;
+  let data = {};
+  try {
+    const signal = AbortSignal.any([stopSignal, AbortSignal.timeout(MODEL_TIMEOUT)]);
+    const send = async (body) => {
       response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body,
-        signal: AbortSignal.timeout(MODEL_TIMEOUT),
+        signal,
       });
       // Тело читаем под тем же таймаутом: ответ может зависнуть уже после заголовков
       const raw = await response.text();
       try { data = JSON.parse(raw); } catch { data = {}; }
-    } catch (error) {
-      lastProblem = `${model}: молчит дольше ${MODEL_TIMEOUT / 1000} с (${error.name})`;
-      console.log(`[gemini] ${lastProblem}, пробую следующую`);
-      continue;
-    }
+    };
 
-    if (TRY_NEXT_MODEL.includes(response.status)) {
-      lastProblem = `${model}: ошибка ${response.status}`;
-      console.log(`[gemini] ${lastProblem}, пробую следующую`);
-      continue;
+    await send(bodies.fast);
+    // 400 — модель не поняла настройку «думать по минимуму». Повторяем без неё.
+    if (response.status === 400) {
+      console.log(`[gemini] ${model} не приняла thinkingLevel (${data.error?.message || '400'}), повторяю без него`);
+      await send(bodies.plain);
     }
-    if (!response.ok) {
-      // Ошибка в самом запросе или ключе — другая модель тут не поможет
-      console.log('[gemini] Ошибка от Google:', response.status, JSON.stringify(data.error || data));
-      throw new GeminiError(`Gemini ответил ошибкой ${response.status}: ${data.error?.message || 'неизвестная ошибка'}`, 502);
-    }
-
-    const candidate = data.candidates?.[0];
-    // Части с пометкой thought — это «мысли» модели, а не ответ
-    const text = (candidate?.content?.parts || []).filter((part) => !part.thought).map((part) => part.text || '').join('');
-    const result = parseJson(text);
-    if (result) return result;
-
-    // Пустой или оборванный ответ: смотрим причину и пробуем следующую модель
-    lastProblem = `${model}: непонятный ответ (finishReason: ${candidate?.finishReason || data.promptFeedback?.blockReason || 'нет'})`;
-    console.log(`[gemini] ${lastProblem}. Текст: ${text.slice(0, 200)}`);
+  } catch (error) {
+    return { problem: `${model}: молчит дольше ${MODEL_TIMEOUT / 1000} с (${error.name})` };
   }
 
-  console.log('[gemini] Ни одна модель не дала ответ. Последняя проблема:', lastProblem);
-  throw new GeminiError(`Ни одна модель Gemini сейчас не дала ответ (${lastProblem}). Подожди минуту и нажми ещё раз.`, 503);
+  if (TRY_NEXT_MODEL.includes(response.status)) {
+    return { problem: `${model}: ошибка ${response.status}` };
+  }
+  if (!response.ok) {
+    console.log('[gemini] Ошибка от Google:', response.status, JSON.stringify(data.error || data));
+    return { fatal: new GeminiError(`Gemini ответил ошибкой ${response.status}: ${data.error?.message || 'неизвестная ошибка'}`, 502) };
+  }
+
+  const candidate = data.candidates?.[0];
+  // Части с пометкой thought — это «мысли» модели, а не ответ
+  const text = (candidate?.content?.parts || []).filter((part) => !part.thought).map((part) => part.text || '').join('');
+  const result = parseJson(text);
+  if (result) return { result };
+
+  const reason = candidate?.finishReason || data.promptFeedback?.blockReason || 'нет';
+  console.log(`[gemini] ${model} прислала непонятный ответ: ${text.slice(0, 200)}`);
+  return { problem: `${model}: непонятный ответ (finishReason: ${reason})` };
 }
 
 // Достаёт JSON из ответа модели, даже если она обернула его в ```json или добавила текст вокруг
