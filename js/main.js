@@ -7,6 +7,7 @@ import { renderWords } from './views/words.js';
 import { renderGrammarList, renderTopic } from './views/grammar.js';
 import { renderChat } from './views/chat.js';
 import { renderStatus } from './views/status.js';
+import { renderCall, leaveCall } from './views/call.js';
 
 const app = document.getElementById('app');
 const nav = document.getElementById('nav');
@@ -16,8 +17,11 @@ const nav = document.getElementById('nav');
 function route() {
   const [, section = 'home', param] = location.hash.split('/');
   const view = h('main', { class: `view view-${section}` });
+  // Ушли из раздела «Звонок» посреди разговора — звонок завершается и разбирается
+  leaveCall();
 
   if (section === 'words') renderWords(view);
+  else if (section === 'call') renderCall(view);
   else if (section === 'grammar' && param) renderTopic(view, param);
   else if (section === 'grammar') renderGrammarList(view);
   else if (section === 'chat') renderChat(view);

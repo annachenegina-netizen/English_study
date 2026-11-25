@@ -17,6 +17,7 @@ function emptyProgress() {
     words: {},      // { want: { stage: 2, due: 1760000000000 } }
     grammar: {},    // { be: { done: true } }
     chat: [],       // [{ role: 'ai' | 'user', text, fix }]
+    calls: [],      // итоги звонков: [{ at, summary, fixes, turns }]
     streak: { last: '', count: 0 },
   };
 }
@@ -214,6 +215,18 @@ export function addChatMessage(message) {
 
 export function clearChat() {
   state.progress.chat = [];
+  save();
+}
+
+// ---------- Звонки ----------
+
+const CALLS_LIMIT = 5;        // сколько последних звонков храним
+const CALL_TURNS_LIMIT = 60;  // сколько реплик звонка храним — чтобы прогресс не разрастался
+
+export function addCall(call) {
+  const saved = { ...call, turns: (call.turns || []).slice(-CALL_TURNS_LIMIT) };
+  state.progress.calls = [...(state.progress.calls || []), saved].slice(-CALLS_LIMIT);
+  touchStreak();
   save();
 }
 
