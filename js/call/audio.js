@@ -19,9 +19,19 @@ export async function startMic(context, onChunk) {
     },
   });
 
-  await context.audioWorklet.addModule(new URL('./mic-worklet.js', import.meta.url));
-  const source = context.createMediaStreamSource(stream);
-  const chunker = new AudioWorkletNode(context, 'mic-chunker');
+  let source;
+  let chunker;
+  try {
+    await context.audioWorklet.addModule(new URL('./mic-worklet.js', import.meta.url));
+    source = context.createMediaStreamSource(stream);
+    // Без выходов: узел, у которого есть неподключённый выход, Safari может вообще не запускать
+    chunker = new AudioWorkletNode(context, 'mic-chunker', { numberOfInputs: 1, numberOfOutputs: 0 });
+  } catch (error) {
+    // Не получилось — выключаем микрофон, чтобы он не остался гореть
+    for (const track of stream.getTracks()) track.stop();
+    throw error;
+  }
+  const [track] = stream.getAudioTracks();
   let muted = false;
 
   chunker.port.onmessage = (event) => {
@@ -34,6 +44,8 @@ export async function startMic(context, onChunk) {
   return {
     // Пауза: микрофон остаётся включённым, но звук никуда не уходит
     setMuted(value) { muted = value; },
+    // false — iOS отобрала микрофон (звонок по телефону, Siri, другое приложение); нужно включить заново
+    alive() { return track?.readyState !== 'ended'; },
     stop() {
       chunker.port.onmessage = null;
       source.disconnect();

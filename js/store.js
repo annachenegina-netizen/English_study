@@ -230,6 +230,12 @@ export function addCall(call) {
   save();
 }
 
+// Дополняет сохранённый звонок (at — его время начала), например итогами разбора
+export function updateCall(at, patch) {
+  state.progress.calls = (state.progress.calls || []).map((call) => (call.at === at ? { ...call, ...patch } : call));
+  save();
+}
+
 // Что ученик уже знает — отправляем в чат, чтобы ИИ не выходил за эти рамки
 export function knowledge() {
   const learned = Object.keys(state.progress.words).filter(isLearned);

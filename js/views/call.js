@@ -2,7 +2,7 @@
 // Экраны: «Готов» → «Идёт звонок» → «Разбираю ошибки» → «Итоги».
 import { h, fixDetails } from '../dom.js';
 import { api } from '../api.js';
-import { state, knowledge, addCall } from '../store.js';
+import { state, knowledge, addCall, updateCall } from '../store.js';
 import { startMic, createPlayer } from '../call/audio.js';
 import { LiveCall } from '../call/live.js';
 import { addPiece, closeTurns, plainTurns } from '../call/transcript.js';
@@ -37,7 +37,8 @@ function showReady(root, error) {
     ),
     calls.length ? h('h2', null, 'Прошлые звонки') : null,
     ...calls.map((call) => h('button', { class: 'card call-past', type: 'button', onclick: () => showResult(root, call) },
-      h('div', { class: 'muted small' }, formatDate(call.at), ' · ошибок: ', String(call.fixes?.length || 0)),
+      h('div', { class: 'muted small' }, formatDate(call.at), ' · ',
+        call.reviewed === false ? 'не разобран' : `ошибок: ${call.fixes?.length || 0}`),
       h('div', null, call.summary || 'Без резюме'),
     )),
   );
@@ -136,7 +137,19 @@ async function startCall(root) {
       return;
     }
     resumeBtn.hidden = true;
+    // iOS могла отобрать микрофон (звонок, Siri, другое приложение) — включаем заново
+    if (mic && !mic.alive()) {
+      mic.stop();
+      try {
+        mic = await startMic(context, (chunk) => live.sendAudio(chunk));
+      } catch (error) {
+        console.log('[call] Микрофон не включился заново:', error.name, error.message);
+        return finish('Микрофон отключился, звонок завершён.');
+      }
+      if (finished) return mic.stop();
+    }
     mic?.setMuted(false);
+    if (finished) return;
     keepAwake();
     live.resume();
   }
@@ -164,7 +177,10 @@ async function startCall(root) {
 
     const said = plainTurns(turns);
     if (!said.some((turn) => turn.role === 'user')) return showReady(root, error);
-    review(root, said, error);
+    // Сохраняем разговор сразу: если разбор не удастся, его можно будет разобрать позже
+    const call = { at: startedAt, turns: said, fixes: [], summary: '', reviewed: false };
+    addCall(call);
+    review(root, call, error);
   }
 
   active = { finish };
@@ -176,6 +192,7 @@ async function startCall(root) {
     mic = await startMic(context, (chunk) => live.sendAudio(chunk));
   } catch (error) {
     console.log('[call] Микрофон не включился:', error.name, error.message);
+    if (finished) return; // звонок уже завершили, пока включался микрофон
     finished = true;
     active = null;
     clearInterval(tick);
@@ -187,6 +204,8 @@ async function startCall(root) {
       : 'Не получилось включить микрофон.';
     return showReady(root, message);
   }
+  // Пока включался микрофон, звонок завершили (кнопка или уход из раздела) — выключаем его
+  if (finished) return mic.stop();
 
   try {
     await live.start();
@@ -198,29 +217,41 @@ async function startCall(root) {
 
 // ---------- Разбор и итоги ----------
 
-async function review(root, turns, callError) {
+// call — сохранённый звонок ({ at, turns, ... }); после разбора дополняется итогами
+async function review(root, call, callError) {
   fill(root,
     h('h1', null, 'Звонок окончен'),
     callError ? h('p', { class: 'error' }, callError) : null,
     h('p', { class: 'muted' }, 'Разбираю ошибки…'),
   );
   try {
-    const data = await api('/api/voice-review', { method: 'POST', body: { turns } });
-    const call = { at: Date.now(), summary: data.summary, fixes: data.fixes || [], turns };
-    addCall(call);
-    showResult(root, call, callError);
+    const data = await api('/api/voice-review', { method: 'POST', body: { turns: call.turns } });
+    const result = { summary: data.summary || '', fixes: data.fixes || [], reviewed: true };
+    updateCall(call.at, result);
+    showResult(root, { ...call, ...result }, callError);
   } catch (error) {
     console.log('[call] Разбор не удался:', error.message);
     fill(root,
       h('h1', null, 'Звонок окончен'),
       h('p', { class: 'error' }, error.message),
-      h('button', { class: 'btn', type: 'button', onclick: () => review(root, turns, callError) }, 'Разобрать ещё раз'),
-      transcript(turns, true),
+      h('p', { class: 'muted small' }, 'Разговор сохранён — разобрать можно и позже, из списка прошлых звонков.'),
+      h('button', { class: 'btn', type: 'button', onclick: () => review(root, call, callError) }, 'Разобрать ещё раз'),
+      transcript(call.turns, true),
     );
   }
 }
 
 function showResult(root, call, callError) {
+  // Звонок сохранён, но ещё не разобран (разбор не удался)
+  if (call.reviewed === false) {
+    return fill(root,
+      h('h1', null, 'Звонок не разобран'),
+      h('div', { class: 'muted small' }, formatDate(call.at)),
+      h('button', { class: 'btn', type: 'button', onclick: () => review(root, call) }, 'Разобрать ошибки'),
+      transcript(call.turns, true),
+      h('button', { class: 'btn ghost', type: 'button', onclick: () => showReady(root) }, 'Назад'),
+    );
+  }
   fill(root,
     h('h1', null, 'Итоги звонка'),
     h('div', { class: 'muted small' }, formatDate(call.at)),
