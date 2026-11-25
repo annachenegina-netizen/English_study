@@ -1,5 +1,37 @@
-// Настройка голосового звонка через Gemini Live: инструкция репетитору и параметры сессии.
-import { TEACHER_STYLE } from './gemini.js';
+// Настройка голосового звонка через Gemini Live: инструкция репетитору, параметры сессии
+// и временный ключ, с которым браузер подключается к Google напрямую.
+import { TEACHER_STYLE, GeminiError } from './gemini.js';
+
+const MINUTE = 60 * 1000;
+const TOKEN_URL = 'https://generativelanguage.googleapis.com/v1beta/auth_tokens';
+
+// Тело запроса временного ключа: одно подключение, живёт 30 минут,
+// подключиться надо в течение минуты, работает только с нашей моделью.
+export function tokenRequestBody(model, now = Date.now()) {
+  return {
+    uses: 1,
+    expireTime: new Date(now + 30 * MINUTE).toISOString(),
+    newSessionExpireTime: new Date(now + MINUTE).toISOString(),
+    liveConnectConstraints: { model: `models/${model}` },
+  };
+}
+
+// Просит у Google временный ключ. Основной ключ остаётся на сервере.
+export async function createLiveToken(key, model) {
+  const response = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+    body: JSON.stringify(tokenRequestBody(model)),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (response.ok && data.name) return data.name;
+
+  console.log('[live] Google не выдал временный ключ:', response.status, JSON.stringify(data.error || data));
+  if (response.status === 429) {
+    throw new GeminiError('Бесплатный лимит Google на сегодня исчерпан. Попробуй позже.', 429);
+  }
+  throw new GeminiError(`Не получилось начать звонок: Google ответил ошибкой ${response.status}`, 502);
+}
 
 // Модель для звонка. Если Google её переименует — задай GEMINI_LIVE_MODEL в Vercel.
 export const LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || 'gemini-3.8-live';
