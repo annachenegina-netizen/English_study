@@ -1,7 +1,7 @@
 // Тесты разбора сообщений Gemini Live
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMessage, handleFrom, describeClose } from '../js/call/protocol.js';
+import { parseMessage, handleFrom, closeAction } from '../js/call/protocol.js';
 
 test('аудио и текст из одного сообщения', () => {
   const ev = parseMessage({ serverContent: {
@@ -39,9 +39,18 @@ test('handleFrom не берёт неприменимый handle', () => {
   assert.equal(handleFrom({ newHandle: '' }, null), null);
 });
 
-test('describeClose', () => {
-  assert.equal(describeClose(1000, ''), null);
-  assert.match(describeClose(1011, 'RESOURCE_EXHAUSTED: quota'), /лимит/);
-  assert.match(describeClose(1008, 'Quota exceeded'), /лимит/);
-  assert.match(describeClose(1006, ''), /Переподключаюсь/);
+test('закрытие не нами, даже кодом 1000, — переподключаемся', () => {
+  assert.deepEqual(closeAction(1000, ''), { action: 'reconnect' });
+  assert.deepEqual(closeAction(1006, ''), { action: 'reconnect' });
+});
+
+test('кончился лимит — звонок завершается понятным сообщением', () => {
+  assert.equal(closeAction(1011, 'RESOURCE_EXHAUSTED: quota').action, 'fail');
+  assert.match(closeAction(1008, 'Quota exceeded').message, /лимит/);
+});
+
+test('Google не принял настройку — звонок завершается с причиной, без повторов', () => {
+  const result = closeAction(1007, 'Invalid JSON payload');
+  assert.equal(result.action, 'fail');
+  assert.match(result.message, /Invalid JSON payload/);
 });

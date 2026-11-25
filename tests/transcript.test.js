@@ -40,3 +40,10 @@ test('addPiece не меняет исходный массив', () => {
   addPiece(t, 'user', 'b');
   assert.equal(t[0].text, 'a');
 });
+
+test('поздний кусок речи ученика дописывается к его открытой реплике, а не новой', () => {
+  let t = addPiece([], 'user', 'I go to');
+  t = addPiece(t, 'ai', 'Oh');
+  t = addPiece(t, 'user', 'shop yesterday');
+  assert.deepEqual(plainTurns(t), [{ role: 'user', text: 'I go to shop yesterday' }, { role: 'ai', text: 'Oh' }]);
+});

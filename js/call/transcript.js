@@ -1,13 +1,16 @@
 // Текст разговора: Google присылает распознанную речь кусками, здесь они собираются в реплики.
 // Реплика — { role: 'user' | 'ai', text, open }. open — реплика ещё продолжается.
 
-// Добавляет кусок текста: дописывает к открытой реплике того же собеседника или начинает новую
+// Добавляет кусок текста: дописывает к открытой реплике того же собеседника или начинает новую.
+// Ищем не только последнюю реплику: распознанная речь ученика часто приходит с опозданием,
+// когда ИИ уже начал отвечать, — её конец должен попасть в ту же фразу ученика.
 export function addPiece(turns, role, text) {
-  const last = turns.at(-1);
-  if (last && last.open && last.role === role) {
+  const index = turns.findLastIndex((turn) => turn.open && turn.role === role);
+  if (index >= 0) {
+    const turn = turns[index];
     // Куски иногда приходят без пробела между словами или предложениями
-    const glue = !last.text || /^\s/.test(text) || /\s$/.test(last.text) ? '' : ' ';
-    return [...turns.slice(0, -1), { ...last, text: last.text + glue + text }];
+    const glue = !turn.text || /^\s/.test(text) || /\s$/.test(turn.text) ? '' : ' ';
+    return turns.map((item, i) => (i === index ? { ...turn, text: turn.text + glue + text } : item));
   }
   return [...turns, { role, text, open: true }];
 }

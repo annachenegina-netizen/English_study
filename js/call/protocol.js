@@ -1,7 +1,6 @@
 // Разбор сообщений Gemini Live в простые события для экрана звонка. Чистые функции.
 
 export const QUOTA_MESSAGE = 'Бесплатный лимит Google на сегодня исчерпан. Попробуй позже.';
-export const RECONNECT_MESSAGE = 'Связь прервалась. Переподключаюсь…';
 
 // Одно сообщение от Google → список событий:
 // ready — настройка принята; audio — кусок голоса ИИ; said — текст того, что сказал ИИ;
@@ -36,9 +35,14 @@ export function handleFrom(update, current) {
   return update.newHandle;
 }
 
-// Почему закрылось соединение — текстом для Влада. null — закрыли штатно.
-export function describeClose(code, reason) {
-  if (code === 1000) return null;
-  if (/quota|RESOURCE_EXHAUSTED|429/i.test(reason || '')) return QUOTA_MESSAGE;
-  return RECONNECT_MESSAGE;
+// Что делать, если Google закрыл соединение (свои закрытия мы сюда не передаём):
+// { action: 'reconnect' } — переподключиться; { action: 'fail', message } — завершить звонок с причиной.
+// Код 1000 — тоже повод переподключиться: раз закрыли не мы, разговор оборвался.
+export function closeAction(code, reason) {
+  if (/quota|RESOURCE_EXHAUSTED|429/i.test(reason || '')) return { action: 'fail', message: QUOTA_MESSAGE };
+  // 1007 и 1008 — Google не принял то, что мы прислали. Повтор не поможет.
+  if (code === 1007 || code === 1008) {
+    return { action: 'fail', message: `Google не принял настройки звонка: ${reason || `код ${code}`}` };
+  }
+  return { action: 'reconnect' };
 }
