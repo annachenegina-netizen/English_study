@@ -1,27 +1,36 @@
 // Настройка голосового звонка через Gemini Live: инструкция репетитору, параметры сессии
 // и временный ключ, с которым браузер подключается к Google напрямую.
-import { TEACHER_STYLE, GeminiError } from './gemini.js';
+//
+// Проверено на реальном ключе 25.11.2026 (scripts/live-smoke.mjs):
+// - временный ключ: поле bidiGenerateContentSetup (liveConnectConstraints Google не знает);
+// - настройка действует, только если зашита в ключ; присланную браузером Google игнорирует;
+// - responseModalities и speechConfig — внутри generationConfig, принято;
+// - inputAudioTranscription.mode = 'VERBATIM' — принято;
+// - голос приходит как audio/pcm;rate=24000, ключ продолжения приходит, end_call вызывается.
+import { GeminiError } from './gemini.js';
 
 const MINUTE = 60 * 1000;
 const TOKEN_URL = 'https://generativelanguage.googleapis.com/v1beta/auth_tokens';
 
-// Тело запроса временного ключа: одно подключение, живёт 30 минут,
-// подключиться надо в течение минуты, работает только с нашей моделью.
-export function tokenRequestBody(model, now = Date.now()) {
+// Тело запроса временного ключа: одно подключение, живёт 30 минут, подключиться надо в течение минуты.
+// В ключ зашивается ВСЯ настройка звонка (setup из buildSetup): проверено 25.11.2026 —
+// настройку, которую присылает браузер, Google с таким ключом игнорирует (инструкция и функции не действуют).
+// Поле liveConnectConstraints из руководства Google не принимает — работает имя из справочника API.
+export function tokenRequestBody(setup, now = Date.now()) {
   return {
     uses: 1,
     expireTime: new Date(now + 30 * MINUTE).toISOString(),
     newSessionExpireTime: new Date(now + MINUTE).toISOString(),
-    liveConnectConstraints: { model: `models/${model}` },
+    bidiGenerateContentSetup: setup,
   };
 }
 
-// Просит у Google временный ключ. Основной ключ остаётся на сервере.
-export async function createLiveToken(key, model) {
+// Просит у Google временный ключ под конкретную настройку звонка. Основной ключ остаётся на сервере.
+export async function createLiveToken(key, setup) {
   const response = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify(tokenRequestBody(model)),
+    body: JSON.stringify(tokenRequestBody(setup)),
   });
   const data = await response.json().catch(() => ({}));
   if (response.ok && data.name) return data.name;
@@ -42,6 +51,15 @@ export const VOICE = 'Kore';
 // Сколько тишины (мс) считать концом фразы. Новичок делает паузы посреди фразы —
 // поэтому больше, чем по умолчанию, чтобы ИИ его не перебивал.
 const SILENCE_MS = 1200;
+
+// Как объяснять по-русски голосом. Это выжимка из TEACHER_STYLE: сам TEACHER_STYLE описывает
+// поля JSON для письменного разбора и в голосовом разговоре только сбивает модель.
+const RUSSIAN_STYLE = `
+How to explain in Russian (out loud):
+- On "ты", one or two short sentences, no grammar terms (no "глагол", "артикль", "подлежащее").
+- Explain through the meaning of his words, compared to Russian. Example: "you — это «ты», а your — «твой». Машина чья? Твоя — значит your."
+- Then say the correct English sentence slowly and ask him to repeat it.
+`.trim();
 
 const TOP_MISTAKES = 5;   // сколько частых ошибок напоминаем репетитору
 const LAST_SUMMARIES = 3; // сколько прошлых разговоров пересказываем
@@ -96,10 +114,11 @@ How to correct mistakes:
 - Never correct if you are not 100% sure it is a mistake. A false correction is worse than a missed one.
 - Do not correct pronunciation if the word is understandable.
 
-Rules for Russian explanations:
-${TEACHER_STYLE}
+${RUSSIAN_STYLE}
 
-When he says goodbye ("bye", "пока", "I have to go"), say a short goodbye and then call the end_call function.
+Ending the call — IMPORTANT:
+When he says goodbye or wants to stop ("bye", "пока", "I have to go", "that's all"), say one short goodbye sentence
+and in the same turn ALWAYS call the end_call function. Without end_call the call does not end.
 `.trim();
 }
 
@@ -114,7 +133,8 @@ export function buildSetup({ model, system, handle }) {
     },
     systemInstruction: { parts: [{ text: system }] },
     // Текст того, что сказали обе стороны, — для экрана и разбора после звонка
-    inputAudioTranscription: {},
+    // Речь ученика — дословно: без этого распознавание «исправляет» его ошибки (поле принято Google 25.11.2026)
+    inputAudioTranscription: { mode: 'VERBATIM' },
     outputAudioTranscription: {},
     // Переподключение без потери разговора и звонок дольше 15 минут
     sessionResumption: handle ? { handle } : {},

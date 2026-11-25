@@ -27,8 +27,11 @@ export default async function handler(req, res) {
       words: (Array.isArray(body.words) ? body.words : []).slice(0, 40).map(String),
       memory: await loadMemory(),
     });
-    const token = await createLiveToken(key, LIVE_MODEL);
-    return res.status(200).json({ token, setup: buildSetup({ model: LIVE_MODEL, system, handle }) });
+    const setup = buildSetup({ model: LIVE_MODEL, system, handle });
+    // Настройка действует, только если зашита в сам ключ. Браузер всё равно отправит её первым
+    // сообщением — этого требует протокол, — но Google возьмёт ту, что в ключе.
+    const token = await createLiveToken(key, setup);
+    return res.status(200).json({ token, setup });
   } catch (error) {
     console.log('[voice-token] Звонок не начался:', error.message);
     return res.status(error.status || 500).json({ error: error.message });

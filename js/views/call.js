@@ -86,7 +86,7 @@ async function startCall(root) {
     onEvent(event) {
       if (event.type === 'ready' && !event.resumed && !greeted) {
         greeted = true;
-        live.sendText('Start the call'); // ИИ здоровается первым
+        live.sendText('(The learner has joined the call. Greet him and ask your first simple question about his life.)'); // ИИ здоровается первым
       } else if (event.type === 'audio') {
         player.play(event.data);
         status.textContent = 'Говорит…';

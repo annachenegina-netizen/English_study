@@ -18,7 +18,7 @@ const patch = process.env.SMOKE_SETUP_PATCH ? JSON.parse(process.env.SMOKE_SETUP
 const setup = { ...buildSetup({ model: LIVE_MODEL, system }), ...patch };
 
 console.log(`[smoke] Модель: ${LIVE_MODEL}`);
-const token = await createLiveToken(key, LIVE_MODEL);
+const token = await createLiveToken(key, setup);
 console.log('[smoke] Временный ключ получен');
 
 const report = { audioChunks: 0, mimeTypes: new Set(), said: '', handle: '', endCall: false };
@@ -36,7 +36,7 @@ socket.addEventListener('message', async (event) => {
   if (msg.setupComplete) {
     console.log('[smoke] Настройка принята (setupComplete)');
     step = 'приветствие';
-    send({ realtimeInput: { text: 'Start the call' } });
+    send({ realtimeInput: { text: '(The learner has joined the call. Greet him and ask your first simple question about his life.)' } });
   }
   for (const part of msg.serverContent?.modelTurn?.parts || []) {
     if (part.inlineData) {
@@ -53,7 +53,8 @@ socket.addEventListener('message', async (event) => {
       if (call.name === 'end_call') report.endCall = true;
       send({ toolResponse: { functionResponses: [{ id: call.id, name: call.name, response: { ok: true } }] } });
     }
-    if (report.endCall) finish();
+    // Не завершаем сразу: смотрим, договорит ли ИИ прощание после вызова функции
+    if (report.endCall) console.log(`[smoke] Текст до вызова end_call: «${report.said.trim()}»`);
   }
 
   if (msg.serverContent?.turnComplete) {
@@ -62,7 +63,7 @@ socket.addEventListener('message', async (event) => {
     if (step === 'приветствие') {
       step = 'прощание';
       send({ realtimeInput: { text: 'Sorry, I have to go. Bye!' } });
-    } else if (step === 'прощание' && !report.endCall) {
+    } else if (step === "прощание") {
       // Функцию могут вызвать чуть позже конца реплики — даём пару секунд
       setTimeout(finish, 3000);
     }

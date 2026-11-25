@@ -38,7 +38,8 @@ test('настройка сессии', () => {
   assert.deepEqual(s.contextWindowCompression, { slidingWindow: {} });
   assert.equal(s.realtimeInputConfig.automaticActivityDetection.endOfSpeechSensitivity, 'END_SENSITIVITY_LOW');
   assert.equal(s.realtimeInputConfig.automaticActivityDetection.silenceDurationMs, 1200);
-  assert.ok(s.inputAudioTranscription && s.outputAudioTranscription);
+  assert.equal(s.inputAudioTranscription.mode, 'VERBATIM');
+  assert.ok(s.outputAudioTranscription);
   assert.equal(s.tools[0].functionDeclarations[0].name, 'end_call');
   assert.deepEqual(buildSetup({ model: 'm', system: '' }).sessionResumption, {});
 });
