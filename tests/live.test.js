@@ -45,6 +45,8 @@ test('режим «без башки»: хамит и матерится, но �
   assert.ok(savage.includes('still give the correct version'));
   assert.ok(savage.includes('ни бе ни ме'), 'пример стёба от Влада');
   assert.ok(savage.includes('count'), 'считает одинаковые ошибки');
+  assert.ok(savage.includes('хуеплёт'), 'расширенный словарь мата');
+  assert.ok(savage.includes('NEVER repeat'), 'не повторяется');
   assert.ok(!normal.includes('SAVAGE MODE'));
 });
 
@@ -63,6 +65,8 @@ test('настройка сессии', () => {
   assert.equal(s.realtimeInputConfig.automaticActivityDetection.endOfSpeechSensitivity, 'END_SENSITIVITY_LOW');
   assert.equal(s.realtimeInputConfig.automaticActivityDetection.silenceDurationMs, 1200);
   assert.equal(s.inputAudioTranscription.mode, 'VERBATIM');
+  // Влад говорит по-английски и по-русски — без подсказки «Что?» распознавалось как испанское «¿Qué?»
+  assert.deepEqual(s.inputAudioTranscription.languageCodes, ['en-US', 'ru-RU']);
   assert.ok(s.outputAudioTranscription);
   assert.equal(s.tools[0].functionDeclarations[0].name, 'end_call');
   assert.deepEqual(buildSetup({ model: 'm', system: '' }).sessionResumption, {});
