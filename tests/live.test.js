@@ -31,6 +31,12 @@ test('каждую ошибку разбирает вслух по-русски,
   assert.ok(!p.includes('do NOT stop'));
 });
 
+test('строгий репетитор: предлоги, a/the, обрывки фраз — без «только если уверен на 100%»', () => {
+  const p = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: { mistakes: {}, facts: [], summaries: [] } });
+  for (const s of ['prepositions', 'articles', 'unfinished']) assert.ok(p.includes(s), s);
+  assert.ok(!p.includes('100% sure'));
+});
+
 test('пустая память не ломает инструкцию', () => {
   const p = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: { mistakes: {}, facts: [], summaries: [] } });
   assert.ok(p.length > 200);
