@@ -47,6 +47,8 @@ test('режим «без башки»: хамит и матерится, но �
   assert.ok(savage.includes('count'), 'считает одинаковые ошибки');
   assert.ok(savage.includes('хуеплёт'), 'расширенный словарь мата');
   assert.ok(savage.includes('NEVER repeat'), 'не повторяется');
+  // Обороты из словаря pohuy (github.com/smixs/pohuy, MIT), переложенные на ошибки в английском
+  for (const s of ['хуй ночевал', 'хуй проссышь', 'понеслась пизда по кочкам', 'хуенитив', 'smixs/pohuy']) assert.ok(savage.includes(s), s);
   assert.ok(!normal.includes('SAVAGE MODE'));
 });
 
