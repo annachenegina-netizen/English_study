@@ -61,6 +61,20 @@ test('репетитор знает цель ученика — работа в 
   assert.ok(savage.includes('From time to time'), 'напоминает о цели периодически, а не в каждой фразе');
 });
 
+test('звонок без лимита: ИИ сам не прощается, end_call только по явной просьбе ученика', () => {
+  const p = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: { mistakes: {}, facts: [], summaries: [] } });
+  assert.ok(p.includes('no time limit'));
+  assert.ok(p.includes('NEVER say goodbye or call end_call on your own'));
+});
+
+test('по-русски только поправка, разговор и вопросы — по-английски', () => {
+  for (const mode of ['normal', 'savage']) {
+    const p = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: { mistakes: {}, facts: [], summaries: [] }, mode });
+    assert.ok(p.includes('Russian is ONLY for'), mode);
+    assert.ok(p.includes('end EVERY reply with a question in English'), mode);
+  }
+});
+
 test('пустая память не ломает инструкцию', () => {
   const p = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: { mistakes: {}, facts: [], summaries: [] } });
   assert.ok(p.length > 200);

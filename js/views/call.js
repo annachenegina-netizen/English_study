@@ -104,9 +104,12 @@ async function startCall(root) {
   // Завершение по прощанию: ждём, пока ИИ договорит и доиграет звук
   let ending = false;
   let endTimer = null;
+  // Полторы секунды после прощания — чтобы успеть сказать «нет, давай дальше»
   const endAfterGoodbye = () => {
     clearTimeout(endTimer);
-    player.idle().then(() => finish());
+    player.idle().then(() => {
+      endTimer = setTimeout(() => { if (ending) finish(); }, 1500);
+    });
   };
 
   const live = new LiveCall({
@@ -128,6 +131,12 @@ async function startCall(root) {
       } else if (event.type === 'heard') {
         turns = addPiece(turns, 'user', event.text);
         draw();
+        // ИИ собрался завершать, а ученик заговорил («нет, давай дальше») — не завершаем
+        if (ending) {
+          ending = false;
+          clearTimeout(endTimer);
+          console.log('[call] Ученик заговорил после прощания — звонок продолжается');
+        }
       } else if (event.type === 'interrupted') {
         player.flush();
         turns = closeTurns(turns);
