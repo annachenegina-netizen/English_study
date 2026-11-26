@@ -49,6 +49,8 @@ test('режим «без башки»: хамит и матерится, но �
   assert.ok(savage.includes('NEVER repeat'), 'не повторяется');
   // Обороты из словаря pohuy (github.com/smixs/pohuy, MIT), переложенные на ошибки в английском
   for (const s of ['хуй ночевал', 'хуй проссышь', 'понеслась пизда по кочкам', 'хуенитив', 'smixs/pohuy']) assert.ok(savage.includes(s), s);
+  // Обзывательства из народного словаря (nickname76/russian-swears) и правило плотности мата
+  for (const s of ['хуем подавился', 'хуйню спорол', 'тупиздень', 'хуй тебе, а не Америка', 'at least ONE insulting name', 'nickname76/russian-swears']) assert.ok(savage.includes(s), s);
   assert.ok(!normal.includes('SAVAGE MODE'));
 });
 
