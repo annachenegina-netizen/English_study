@@ -52,6 +52,15 @@ test('режим «без башки»: хамит и матерится, но �
   assert.ok(!normal.includes('SAVAGE MODE'));
 });
 
+test('репетитор знает цель ученика — работа в американской компании; в «без башки» периодически стебётся над ней', () => {
+  const empty = { mistakes: {}, facts: [], summaries: [] };
+  const normal = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: empty });
+  const savage = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: empty, mode: 'savage' });
+  assert.ok(normal.includes('job in the USA'));
+  assert.ok(savage.includes('job in the USA'));
+  assert.ok(savage.includes('From time to time'), 'напоминает о цели периодически, а не в каждой фразе');
+});
+
 test('пустая память не ломает инструкцию', () => {
   const p = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: { mistakes: {}, facts: [], summaries: [] } });
   assert.ok(p.length > 200);
