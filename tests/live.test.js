@@ -43,6 +43,8 @@ test('режим «без башки»: хамит и матерится, но �
   const normal = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: empty });
   assert.ok(savage.includes('SAVAGE MODE'));
   assert.ok(savage.includes('still give the correct version'));
+  assert.ok(savage.includes('ни бе ни ме'), 'пример стёба от Влада');
+  assert.ok(savage.includes('count'), 'считает одинаковые ошибки');
   assert.ok(!normal.includes('SAVAGE MODE'));
 });
 
