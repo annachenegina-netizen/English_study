@@ -24,6 +24,13 @@ test('частые ошибки идут по убыванию, резюме —
   assert.ok(!p.includes('talk 1') && p.includes('talk 4'));
 });
 
+test('каждую ошибку разбирает вслух по-русски, а не поправляет незаметно', () => {
+  const p = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: { mistakes: {}, facts: [], summaries: [] } });
+  assert.ok(p.includes('EVERY real mistake'));
+  assert.ok(p.includes('Ты сказал'));
+  assert.ok(!p.includes('do NOT stop'));
+});
+
 test('пустая память не ломает инструкцию', () => {
   const p = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: { mistakes: {}, facts: [], summaries: [] } });
   assert.ok(p.length > 200);
