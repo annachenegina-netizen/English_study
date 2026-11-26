@@ -1,5 +1,5 @@
 // Тесты соединения со звонком (LiveCall) на поддельном WebSocket и поддельном сервере
-import { test, mock, beforeEach } from 'node:test';
+import { test, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 // ---------- Подделки ----------
@@ -40,6 +40,9 @@ const { LiveCall } = await import('../js/call/live.js');
 const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); };
 const openSockets = () => FakeSocket.all.filter((socket) => !socket.closedByUs && socket.readyState !== 3);
 
+// Все созданные звонки — чтобы остановить их таймеры после каждого теста
+const calls = [];
+
 function makeCall() {
   const events = [];
   const statuses = [];
@@ -48,6 +51,7 @@ function makeCall() {
     onEvent: (event) => events.push(event),
     onStatus: (status) => statuses.push(status),
   });
+  calls.push(call);
   return { call, events, statuses };
 }
 
@@ -60,6 +64,10 @@ async function startReady() {
   socket.emit({ setupComplete: {} });
   return { ...made, socket };
 }
+
+afterEach(() => {
+  for (const call of calls.splice(0)) call.stop();
+});
 
 beforeEach(() => {
   FakeSocket.all = [];
@@ -155,6 +163,21 @@ test('goAway посреди ответа ИИ: переключение посл
   assert.equal(socket.closedByUs, true);
   await settle();
   assert.equal(FakeSocket.all.length, 2);
+});
+
+// Google рвёт соединение ровно через 10 минут кодом 1011, часто БЕЗ goAway (проверено 26.11.2026).
+// Поэтому на 9-й минуте переключаемся сами — в паузе, а не посреди фразы ИИ.
+test('на 9-й минуте соединение меняется само, не дожидаясь обрыва от Google', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const { socket } = await startReady();
+    mock.timers.tick(9 * 60 * 1000);
+    assert.equal(socket.closedByUs, true);
+    await settle();
+    assert.equal(FakeSocket.all.length, 2);
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test('речь ученика во время переключения не теряется — уходит в новое соединение', async () => {

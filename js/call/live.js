@@ -12,6 +12,9 @@ const WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativel
 // плюс время на сами попытки: хватает, чтобы пережить переход с Wi-Fi на сотовую связь.
 const MAX_RETRIES = 5;
 const retryDelay = (attempt) => (attempt <= 1 ? 0 : Math.min(1000 * 2 ** (attempt - 2), 8000));
+// Google рвёт соединение ровно через 10 минут (кодом 1011, часто без goAway — проверено 26.11.2026).
+// Меняем его сами на 9-й минуте, в паузе между репликами, чтобы ИИ не обрывался на полуслове.
+const SWITCH_AFTER = 9 * 60 * 1000;
 const MAX_PENDING_AUDIO = 50; // до 5 секунд речи (куски по 100 мс), пока переключаемся
 const decoder = new TextDecoder();
 
@@ -32,6 +35,7 @@ export class LiveCall {
     this.handle = null;
     this.retries = 0;
     this.retryTimer = null;
+    this.ageTimer = null;     // плановая смена соединения на 9-й минуте
     this.paused = false;
     this.stopped = false;
     // Номер попытки подключения: ответ на устаревшую попытку (например, до паузы) выбрасываем
@@ -94,13 +98,14 @@ export class LiveCall {
         this.onStatus({ state: 'live' });
         event.resumed = Boolean(this.handle);
         this.flushAudio();
+        clearTimeout(this.ageTimer);
+        this.ageTimer = setTimeout(() => this.planSwitch(), SWITCH_AFTER);
       } else if (event.type === 'handle') {
         this.handle = handleFrom(event.update, this.handle);
         continue;
       } else if (event.type === 'goAway') {
-        console.log('[live] Google скоро закроет соединение — переключусь, когда ИИ договорит');
-        this.switchPending = true;
-        if (!this.speaking) this.switchNow();
+        console.log('[live] Google скоро закроет соединение');
+        this.planSwitch();
         continue;
       } else if (event.type === 'audio') {
         this.speaking = true;
@@ -113,6 +118,13 @@ export class LiveCall {
       if (this.switchPending && (event.type === 'turnEnd' || event.type === 'interrupted')) this.switchNow();
       if (socket !== this.socket) return; // переключились — остальное из этого сообщения уже не нужно
     }
+  }
+
+  // Пора менять соединение: сразу, если ИИ молчит, иначе — когда договорит
+  planSwitch() {
+    if (this.stopped || this.paused || !this.socket) return;
+    this.switchPending = true;
+    if (!this.speaking) this.switchNow();
   }
 
   // Плановое переключение: закрыть старое соединение и сразу открыть новое с продолжением
@@ -175,6 +187,7 @@ export class LiveCall {
   }
 
   dropSocket() {
+    clearTimeout(this.ageTimer);
     quietClose(this.socket);
     this.socket = null;
     this.ready = false;
