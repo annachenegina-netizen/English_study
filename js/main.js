@@ -7,7 +7,7 @@ import { renderWords } from './views/words.js';
 import { renderGrammarList, renderTopic } from './views/grammar.js';
 import { renderChat } from './views/chat.js';
 import { renderStatus } from './views/status.js';
-import { renderCall, leaveCall } from './views/call.js';
+import { renderCall, leaveCall, callInProgress } from './views/call.js';
 
 const app = document.getElementById('app');
 const nav = document.getElementById('nav');
@@ -91,7 +91,8 @@ async function refresh() {
   if (!getToken()) return;
   try {
     const changed = await pull();
-    if (state.outdated) showUpdateBar();
+    // Во время звонка не предлагаем обновиться: перезагрузка оборвала бы разговор
+    if (state.outdated && !callInProgress()) showUpdateBar();
     // Чат и открытый урок не перерисовываем, чтобы не сбить ввод
     const section = location.hash.split('/')[1];
     if (changed && (section === 'home' || !section)) route();

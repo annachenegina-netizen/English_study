@@ -113,6 +113,24 @@ test('пауза и возврат во время повтора не оста�
   }
 });
 
+test('без связи звонок ждёт дольше 6 секунд — переход с Wi-Fi на сотовую его не роняет', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const { socket, statuses } = await startReady();
+    autoAnswer = false;
+    socket.serverClose(1006);
+    for (let second = 0; second < 10; second++) {
+      await settle();
+      for (const request of requests) request.fail();
+      await settle();
+      mock.timers.tick(1000);
+    }
+    assert.notEqual(statuses.at(-1).state, 'ended');
+  } finally {
+    mock.timers.reset();
+  }
+});
+
 test('goAway: старое соединение работает, пока новое не готово', async () => {
   const { call, socket } = await startReady();
   socket.emit({ sessionResumptionUpdate: { newHandle: 'H1', resumable: true } });

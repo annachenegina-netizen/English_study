@@ -7,7 +7,10 @@ import { api } from '../api.js';
 import { parseMessage, handleFrom, closeAction } from './protocol.js';
 
 const WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
-const MAX_RETRIES = 3; // сколько раз подряд пробуем переподключиться после обрыва
+// Сколько раз подряд пробуем переподключиться после обрыва. Паузы 1, 2, 4, 8, 8 с — всего около 23 с:
+// хватает, чтобы пережить переход с Wi-Fi на сотовую связь.
+const MAX_RETRIES = 5;
+const retryDelay = (attempt) => Math.min(1000 * 2 ** (attempt - 1), 8000);
 const decoder = new TextDecoder();
 
 export class LiveCall {
@@ -194,7 +197,7 @@ export class LiveCall {
       console.log('[live] Не удалось переподключиться:', error.message);
       if (this.stopped || this.paused) return;
       if (error.status === 429) return this.fail(error.message);
-      this.retryTimer = setTimeout(() => this.reconnect(), 1000 * this.retries);
+      this.retryTimer = setTimeout(() => this.reconnect(), retryDelay(this.retries));
     }
   }
 

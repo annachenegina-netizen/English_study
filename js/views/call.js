@@ -14,6 +14,11 @@ export function leaveCall() {
   if (active) active.finish();
 }
 
+// Идёт ли сейчас звонок — пока идёт, не предлагаем перезагрузить страницу
+export function callInProgress() {
+  return Boolean(active);
+}
+
 export function renderCall(root) {
   showReady(root);
 }
@@ -74,20 +79,34 @@ async function startCall(root) {
   const tick = setInterval(() => { timer.textContent = formatDuration(Date.now() - startedAt); }, 1000);
 
   const draw = () => {
+    // Прокручиваем вниз, только если Влад и так внизу — иначе он не сможет перечитать начало
+    const atBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 80;
     list.replaceChildren(...plainTurns(turns).map((turn) =>
       h('div', { class: turn.role === 'ai' ? 'msg ai' : 'msg-wrap' },
         turn.role === 'ai' ? turn.text : h('div', { class: 'msg user' }, turn.text))));
-    window.scrollTo(0, document.body.scrollHeight);
+    if (atBottom) window.scrollTo(0, document.body.scrollHeight);
   };
 
   const player = createPlayer(context);
 
+  // Завершение по прощанию: ждём, пока ИИ договорит и доиграет звук
+  let ending = false;
+  let endTimer = null;
+  const endAfterGoodbye = () => {
+    clearTimeout(endTimer);
+    player.idle().then(() => finish());
+  };
+
   const live = new LiveCall({
     knowledge: knowledge(),
     onEvent(event) {
-      if (event.type === 'ready' && !event.resumed && !greeted) {
+      if (event.type === 'ready' && !greeted) {
         greeted = true;
         live.sendText('(The learner has joined the call. Greet him and ask your first simple question about his life.)'); // ИИ здоровается первым
+      } else if (event.type === 'ready' && !event.resumed) {
+        // Связь восстановилась, но без продолжения — ИИ не помнит разговор. Даём ему конец разговора, чтобы не молчал.
+        const recent = plainTurns(turns).slice(-4).map((turn) => `${turn.role === 'ai' ? 'Tutor' : 'Learner'}: ${turn.text}`).join(' / ');
+        live.sendText(`(The connection dropped and was restored. Recent talk: ${recent || 'nothing yet'}. Continue the conversation naturally.)`);
       } else if (event.type === 'audio') {
         player.play(event.data);
         status.textContent = 'Говорит…';
@@ -103,10 +122,14 @@ async function startCall(root) {
         status.textContent = 'Слушаю…';
       } else if (event.type === 'turnEnd') {
         turns = closeTurns(turns);
-        status.textContent = 'Слушаю…';
+        if (ending) return endAfterGoodbye();
+        // «Слушаю…» — когда голос ИИ действительно доиграл
+        player.idle().then(() => { if (!finished) status.textContent = 'Слушаю…'; });
       } else if (event.type === 'endCall') {
-        // Дослушать прощание и завершить
-        player.idle().then(() => finish());
+        // ИИ вызывает завершение посреди прощания — дожидаемся конца его реплики.
+        // Страховка: если конец реплики не придёт, завершаем через 8 секунд.
+        ending = true;
+        endTimer = setTimeout(endAfterGoodbye, 8000);
       }
     },
     onStatus({ state: callState, error }) {
@@ -120,7 +143,10 @@ async function startCall(root) {
   // Экран не гаснет, пока идёт звонок
   async function keepAwake() {
     try {
-      wakeLock = await navigator.wakeLock.request('screen');
+      const lock = await navigator.wakeLock.request('screen');
+      // Звонок закончился, пока ждали разрешения, — сразу отпускаем экран
+      if (finished) return lock.release().catch(() => {});
+      wakeLock = lock;
     } catch (error) {
       console.log('[call] Не получилось запретить экрану гаснуть:', error.message);
       hint.hidden = false;
@@ -169,6 +195,7 @@ async function startCall(root) {
     finished = true;
     active = null;
     clearInterval(tick);
+    clearTimeout(endTimer);
     document.removeEventListener('visibilitychange', onVisibility);
     live.stop();
     mic?.stop();
