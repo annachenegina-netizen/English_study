@@ -310,6 +310,21 @@ mark { background: none; color: var(--ok); text-decoration: underline; text-unde
 
 .call-btn { padding: 18px 16px; font-size: 19px; }
 
+/* Переключатель характера репетитора */
+.mode-switch { display: flex; gap: 8px; margin-top: 12px; }
+.mode-btn {
+  flex: 1;
+  padding: 10px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.mode-btn.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
 .call-past { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 
 .call-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }

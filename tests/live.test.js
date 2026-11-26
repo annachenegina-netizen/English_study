@@ -37,6 +37,15 @@ test('строгий репетитор: предлоги, a/the, обрывки
   assert.ok(!p.includes('100% sure'));
 });
 
+test('режим «без башки»: хамит и матерится, но объяснение остаётся; обычный режим — без этого', () => {
+  const empty = { mistakes: {}, facts: [], summaries: [] };
+  const savage = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: empty, mode: 'savage' });
+  const normal = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: empty });
+  assert.ok(savage.includes('SAVAGE MODE'));
+  assert.ok(savage.includes('still give the correct version'));
+  assert.ok(!normal.includes('SAVAGE MODE'));
+});
+
 test('пустая память не ломает инструкцию', () => {
   const p = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: { mistakes: {}, facts: [], summaries: [] } });
   assert.ok(p.length > 200);

@@ -26,6 +26,7 @@ export default async function handler(req, res) {
       topics: (Array.isArray(body.topics) ? body.topics : []).slice(0, 20).map(String),
       words: (Array.isArray(body.words) ? body.words : []).slice(0, 40).map(String),
       memory: await loadMemory(),
+      mode: body.mode === 'savage' ? 'savage' : 'normal', // «без башки» или обычный
     });
     const setup = buildSetup({ model: LIVE_MODEL, system, handle });
     // Настройка действует, только если зашита в сам ключ. Браузер всё равно отправит её первым

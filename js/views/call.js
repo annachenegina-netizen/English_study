@@ -2,7 +2,7 @@
 // Экраны: «Готов» → «Идёт звонок» → «Разбираю ошибки» → «Итоги».
 import { h, fixDetails } from '../dom.js';
 import { api } from '../api.js';
-import { state, knowledge, addCall, updateCall } from '../store.js';
+import { state, knowledge, addCall, updateCall, setCallMode } from '../store.js';
 import { startMic, createPlayer } from '../call/audio.js';
 import { LiveCall } from '../call/live.js';
 import { addPiece, closeTurns, plainTurns } from '../call/transcript.js';
@@ -38,6 +38,7 @@ function showReady(root, error) {
       h('p', null, 'Разговор голосом на английском. Положи телефон рядом и занимайся своими делами — экран не блокируй.'),
       h('p', { class: 'muted small' }, 'Чтобы закончить, скажи «bye» или нажми «Завершить».'),
       error ? h('p', { class: 'error' }, error) : null,
+      modeSwitch(root, error),
       h('button', { class: 'btn call-btn', type: 'button', onclick: () => startCall(root) }, '📞 Начать'),
     ),
     calls.length ? h('h2', null, 'Прошлые звонки') : null,
@@ -47,6 +48,17 @@ function showReady(root, error) {
       h('div', null, call.summary || 'Без резюме'),
     )),
   );
+}
+
+// Характер репетитора: вежливый или «без башки» (хамит и матерится из-за ошибок). Выбор запоминается.
+function modeSwitch(root, error) {
+  const current = state.progress.callMode === 'savage' ? 'savage' : 'normal';
+  const option = (mode, label) => h('button', {
+    class: `mode-btn${current === mode ? ' active' : ''}`,
+    type: 'button',
+    onclick: () => { setCallMode(mode); showReady(root, error); },
+  }, label);
+  return h('div', { class: 'mode-switch' }, option('normal', '😇 Вежливый'), option('savage', '😈 Без башки'));
 }
 
 // ---------- Сам звонок ----------
@@ -98,7 +110,7 @@ async function startCall(root) {
   };
 
   const live = new LiveCall({
-    knowledge: knowledge(),
+    knowledge: { ...knowledge(), mode: state.progress.callMode === 'savage' ? 'savage' : 'normal' },
     onEvent(event) {
       if (event.type === 'ready' && !greeted) {
         greeted = true;

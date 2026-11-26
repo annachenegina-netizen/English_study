@@ -29,7 +29,7 @@ function pcmFromWav(buffer) {
 }
 
 const pcm = pcmFromWav(await readFile(wavPath));
-const system = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: emptyMemory() });
+const system = buildTutorPrompt({ level: 1, maxLevel: 6, topics: [], words: [], memory: emptyMemory(), mode: process.env.SMOKE_MODE });
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Одно соединение: ждёт сообщения по условию

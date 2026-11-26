@@ -5,7 +5,14 @@ import assert from 'node:assert/strict';
 // Прогресс пытается отправиться на сервер — отвечаем «ок», чтобы не шуметь
 globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({}) });
 
-const { state, addCall, updateCall } = await import('../js/store.js');
+const { state, addCall, updateCall, setCallMode } = await import('../js/store.js');
+
+test('характер репетитора запоминается в прогрессе', () => {
+  setCallMode('savage');
+  assert.equal(state.progress.callMode, 'savage');
+  setCallMode('normal');
+  assert.equal(state.progress.callMode, 'normal');
+});
 
 test('звонок сохраняется сразу после окончания, ещё до разбора', () => {
   state.progress.calls = [];

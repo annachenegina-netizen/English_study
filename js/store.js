@@ -230,6 +230,12 @@ export function addCall(call) {
   save();
 }
 
+// Характер репетитора в звонке: 'normal' — вежливый, 'savage' — «без башки»
+export function setCallMode(mode) {
+  state.progress.callMode = mode === 'savage' ? 'savage' : 'normal';
+  save();
+}
+
 // Дополняет сохранённый звонок (at — его время начала), например итогами разбора
 export function updateCall(at, patch) {
   state.progress.calls = (state.progress.calls || []).map((call) => (call.at === at ? { ...call, ...patch } : call));
