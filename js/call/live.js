@@ -1,16 +1,18 @@
 // Соединение с Gemini Live на время звонка. Только для браузера.
 // Ключ на каждое подключение берём у нашего сервера (/api/voice-token): основной ключ Gemini в браузер не попадает.
 // Google закрывает соединение примерно раз в 10 минут и заранее предупреждает (goAway).
-// Тогда мы открываем новое соединение рядом со старым, с ключом продолжения (handle),
-// и переключаемся, когда оно готово и ИИ договорил, — разговор не обрывается.
+// Тогда дожидаемся, пока ИИ договорит, закрываем старое соединение и открываем новое с ключом продолжения (handle).
+// Открыть новое, пока старое ещё живо, нельзя: Google отвечает «session is already connected to an existing client»
+// (проверено 26.11.2026). Речь ученика за эти 1-2 секунды копится и уходит в новое соединение.
 import { api } from '../api.js';
 import { parseMessage, handleFrom, closeAction } from './protocol.js';
 
 const WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
-// Сколько раз подряд пробуем переподключиться после обрыва. Паузы 1, 2, 4, 8, 8 с — всего около 23 с:
-// хватает, чтобы пережить переход с Wi-Fi на сотовую связь.
+// Сколько раз подряд пробуем переподключиться после обрыва. Паузы 0, 1, 2, 4, 8 с — всего около 15 с,
+// плюс время на сами попытки: хватает, чтобы пережить переход с Wi-Fi на сотовую связь.
 const MAX_RETRIES = 5;
-const retryDelay = (attempt) => Math.min(1000 * 2 ** (attempt - 1), 8000);
+const retryDelay = (attempt) => (attempt <= 1 ? 0 : Math.min(1000 * 2 ** (attempt - 2), 8000));
+const MAX_PENDING_AUDIO = 50; // до 5 секунд речи (куски по 100 мс), пока переключаемся
 const decoder = new TextDecoder();
 
 export class LiveCall {
@@ -21,20 +23,19 @@ export class LiveCall {
     this.knowledge = knowledge;
     this.onEvent = onEvent;
     this.onStatus = onStatus;
-    this.socket = null;      // рабочее соединение
-    this.next = null;        // новое соединение, которое готовим после goAway
-    this.nextReady = false;
-    this.ready = false;      // рабочее соединение приняло настройку
-    this.speaking = false;   // ИИ сейчас говорит — не переключаем соединение посреди фразы
+    this.socket = null;
+    this.ready = false;          // соединение приняло настройку
+    this.everReady = false;      // звонок хоть раз начался — с этого момента копим речь при переключениях
+    this.speaking = false;       // ИИ сейчас говорит — не переключаем соединение посреди фразы
+    this.switchPending = false;  // Google предупредил о закрытии — переключимся, когда ИИ договорит
+    this.pendingAudio = [];      // речь ученика, сказанная, пока соединения нет
     this.handle = null;
     this.retries = 0;
     this.retryTimer = null;
     this.paused = false;
     this.stopped = false;
-    // Номера попыток подключения: ответ на устаревшую попытку (например, до паузы) выбрасываем
+    // Номер попытки подключения: ответ на устаревшую попытку (например, до паузы) выбрасываем
     this.attempt = 0;
-    this.mainAttempt = 0;
-    this.nextAttempt = 0;
   }
 
   async start() {
@@ -50,35 +51,19 @@ export class LiveCall {
     });
   }
 
-  // Открывает рабочее соединение (первое или после обрыва)
   async connect() {
     clearTimeout(this.retryTimer);
-    const id = this.mainAttempt = ++this.attempt;
+    const id = ++this.attempt;
     this.ready = false;
     let data;
     try {
       data = await this.fetchToken();
     } catch (error) {
-      if (id !== this.mainAttempt) return; // попытка уже не нужна — ошибку не поднимаем
+      if (id !== this.attempt) return; // попытка уже не нужна — ошибку не поднимаем
       throw error;
     }
-    if (id !== this.mainAttempt || this.stopped || this.paused) return;
+    if (id !== this.attempt || this.stopped || this.paused) return;
     this.socket = this.createSocket(data);
-  }
-
-  // goAway: готовим новое соединение рядом со старым
-  async prepareNext() {
-    if (this.nextAttempt || this.next) return;
-    const id = this.nextAttempt = ++this.attempt;
-    try {
-      const data = await this.fetchToken();
-      if (id !== this.nextAttempt || this.stopped || this.paused) return;
-      this.next = this.createSocket(data);
-    } catch (error) {
-      // Не вышло — старое соединение закроется, и сработает обычное переподключение
-      console.log('[live] Не удалось заранее открыть новое соединение:', error.message);
-      if (id === this.nextAttempt) this.nextAttempt = 0;
-    }
   }
 
   createSocket({ token, setup }) {
@@ -93,36 +78,29 @@ export class LiveCall {
   }
 
   receive(socket, data) {
+    if (socket !== this.socket) return; // сообщение от старого, уже закрытого соединения
     const raw = typeof data === 'string' ? data : decoder.decode(data);
     let msg;
     try { msg = JSON.parse(raw); } catch {
       console.log('[live] Непонятное сообщение от Gemini:', raw.slice(0, 200));
       return;
     }
-    const events = parseMessage(msg);
 
-    // От нового соединения ждём только готовности — до переключения разговор идёт по старому
-    if (socket === this.next) {
-      if (events.some((event) => event.type === 'ready')) {
-        this.nextReady = true;
-        this.trySwap();
-      }
-      return;
-    }
-    if (socket !== this.socket) return; // сообщение от старого, уже закрытого соединения
-
-    for (const event of events) {
+    for (const event of parseMessage(msg)) {
       if (event.type === 'ready') {
         this.ready = true;
+        this.everReady = true;
         this.retries = 0;
         this.onStatus({ state: 'live' });
         event.resumed = Boolean(this.handle);
+        this.flushAudio();
       } else if (event.type === 'handle') {
         this.handle = handleFrom(event.update, this.handle);
         continue;
       } else if (event.type === 'goAway') {
-        console.log('[live] Google скоро закроет соединение — готовлю новое заранее');
-        this.prepareNext();
+        console.log('[live] Google скоро закроет соединение — переключусь, когда ИИ договорит');
+        this.switchPending = true;
+        if (!this.speaking) this.switchNow();
         continue;
       } else if (event.type === 'audio') {
         this.speaking = true;
@@ -132,72 +110,52 @@ export class LiveCall {
       // end_call: ответ функции не отправляем — иначе ИИ говорит «The call has been ended».
       // Звонок всё равно закрывается на нашей стороне.
       this.onEvent(event);
-      if (event.type === 'turnEnd' || event.type === 'interrupted') this.trySwap();
+      if (this.switchPending && (event.type === 'turnEnd' || event.type === 'interrupted')) this.switchNow();
+      if (socket !== this.socket) return; // переключились — остальное из этого сообщения уже не нужно
     }
   }
 
-  // Переключение на новое соединение: оно готово и ИИ не говорит
-  trySwap() {
-    if (!this.next || !this.nextReady || this.speaking) return;
-    const old = this.socket;
-    this.socket = this.next;
-    this.next = null;
-    this.nextReady = false;
-    this.nextAttempt = 0;
-    this.ready = true;
-    this.retries = 0;
-    quietClose(old);
-    console.log('[live] Переключился на новое соединение');
+  // Плановое переключение: закрыть старое соединение и сразу открыть новое с продолжением
+  switchNow() {
+    this.switchPending = false;
+    console.log('[live] Переключаюсь на новое соединение');
+    this.dropSocket();
+    this.tryConnect();
   }
 
   closed(socket, event) {
-    if (this.stopped || this.paused) return;
-    // Не открылось новое соединение — не страшно, старое ещё работает
-    if (socket === this.next) {
-      this.next = null;
-      this.nextReady = false;
-      this.nextAttempt = 0;
-      return;
-    }
-    if (socket !== this.socket) return;
-
+    if (this.stopped || this.paused || socket !== this.socket) return;
     console.log(`[live] Соединение закрыто: код ${event.code}, причина: ${event.reason || 'нет'}`);
-    this.ready = false;
     this.socket = null;
+    this.ready = false;
     this.speaking = false;
-
-    // Новое соединение уже открыто — сразу переходим на него
-    if (this.next) {
-      this.socket = this.next;
-      this.next = null;
-      this.nextAttempt = 0;
-      if (this.nextReady) {
-        this.nextReady = false;
-        this.ready = true;
-      }
-      return;
-    }
-    this.nextAttempt = 0;
+    this.switchPending = false;
 
     const result = closeAction(event.code, event.reason);
     if (result.action === 'fail') return this.fail(result.message);
     this.reconnect();
   }
 
-  // Открыть новое рабочее соединение с продолжением разговора
-  async reconnect() {
+  // Переподключение после обрыва: первая попытка сразу, дальше с растущими паузами
+  reconnect() {
     if (this.stopped || this.paused) return;
     if (this.retries >= MAX_RETRIES) return this.fail('Связь не восстановилась. Проверь интернет и начни звонок заново.');
     this.retries++;
     this.onStatus({ state: 'reconnecting' });
-    this.dropSockets();
+    this.dropSocket();
+    const delay = retryDelay(this.retries);
+    if (delay) this.retryTimer = setTimeout(() => this.tryConnect(), delay);
+    else this.tryConnect();
+  }
+
+  async tryConnect() {
     try {
       await this.connect();
     } catch (error) {
-      console.log('[live] Не удалось переподключиться:', error.message);
+      console.log('[live] Не удалось подключиться:', error.message);
       if (this.stopped || this.paused) return;
       if (error.status === 429) return this.fail(error.message);
-      this.retryTimer = setTimeout(() => this.reconnect(), retryDelay(this.retries));
+      this.reconnect();
     }
   }
 
@@ -207,20 +165,18 @@ export class LiveCall {
     this.onStatus({ state: 'ended', error: message });
   }
 
-  // Закрыть все соединения и забыть недоделанные попытки
+  // Закрыть соединение и забыть недоделанные попытки
   cancelAll() {
     clearTimeout(this.retryTimer);
-    this.mainAttempt = 0;
-    this.nextAttempt = 0;
-    this.dropSockets();
+    this.attempt++;
+    this.pendingAudio = [];
+    this.switchPending = false;
+    this.dropSocket();
   }
 
-  dropSockets() {
+  dropSocket() {
     quietClose(this.socket);
-    quietClose(this.next);
     this.socket = null;
-    this.next = null;
-    this.nextReady = false;
     this.ready = false;
     this.speaking = false;
   }
@@ -229,9 +185,23 @@ export class LiveCall {
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(message));
   }
 
-  // Кусок звука с микрофона (base64 PCM16 16 кГц)
+  // Кусок звука с микрофона (base64 PCM16 16 кГц).
+  // Нет соединения посреди звонка — копим, чтобы сказанное во время переключения не пропало.
   sendAudio(base64) {
-    if (this.ready) this.send({ realtimeInput: { audio: { data: base64, mimeType: 'audio/pcm;rate=16000' } } });
+    if (this.ready) return this.sendAudioNow(base64);
+    if (!this.everReady || this.paused || this.stopped) return;
+    this.pendingAudio.push(base64);
+    if (this.pendingAudio.length > MAX_PENDING_AUDIO) this.pendingAudio.shift();
+  }
+
+  sendAudioNow(base64) {
+    this.send({ realtimeInput: { audio: { data: base64, mimeType: 'audio/pcm;rate=16000' } } });
+  }
+
+  flushAudio() {
+    const pending = this.pendingAudio;
+    this.pendingAudio = [];
+    for (const chunk of pending) this.sendAudioNow(chunk);
   }
 
   sendText(text) {
@@ -251,12 +221,7 @@ export class LiveCall {
     this.paused = false;
     this.retries = 0;
     this.onStatus({ state: 'reconnecting' });
-    try {
-      await this.connect();
-    } catch (error) {
-      console.log('[live] Не удалось продолжить звонок:', error.message);
-      this.reconnect();
-    }
+    await this.tryConnect();
   }
 
   stop() {

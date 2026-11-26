@@ -49,6 +49,10 @@ test('кончился лимит — звонок завершается пон
   assert.match(closeAction(1008, 'Quota exceeded').message, /лимит/);
 });
 
+test('«сессия уже подключена» — старое соединение ещё не отпущено, пробуем снова, а не обрываем звонок', () => {
+  assert.deepEqual(closeAction(1008, 'BidiGenerateContent session is already connected to an existing client'), { action: 'reconnect' });
+});
+
 test('Google не принял настройку — звонок завершается с причиной, без повторов', () => {
   const result = closeAction(1007, 'Invalid JSON payload');
   assert.equal(result.action, 'fail');

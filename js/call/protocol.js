@@ -40,6 +40,8 @@ export function handleFrom(update, current) {
 // Код 1000 — тоже повод переподключиться: раз закрыли не мы, разговор оборвался.
 export function closeAction(code, reason) {
   if (/quota|RESOURCE_EXHAUSTED|429/i.test(reason || '')) return { action: 'fail', message: QUOTA_MESSAGE };
+  // Google ещё не отпустил прошлое соединение (например, после сворачивания Safari) — через секунду получится
+  if (/already connected/i.test(reason || '')) return { action: 'reconnect' };
   // 1007 и 1008 — Google не принял то, что мы прислали. Повтор не поможет.
   if (code === 1007 || code === 1008) {
     return { action: 'fail', message: `Google не принял настройки звонка: ${reason || `код ${code}`}` };

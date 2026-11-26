@@ -131,37 +131,41 @@ test('без связи звонок ждёт дольше 6 секунд — п
   }
 });
 
-test('goAway: старое соединение работает, пока новое не готово', async () => {
-  const { call, socket } = await startReady();
+// Google не даёт продолжить разговор вторым соединением, пока первое открыто
+// («session is already connected to an existing client», проверено 26.11.2026).
+// Поэтому сначала закрываем старое, потом открываем новое.
+test('goAway: новое соединение открывается только после закрытия старого', async () => {
+  const { socket } = await startReady();
   socket.emit({ sessionResumptionUpdate: { newHandle: 'H1', resumable: true } });
   socket.emit({ goAway: { timeLeft: '10s' } });
+  assert.equal(socket.closedByUs, true, 'старое закрыто до запроса нового');
   await settle();
   assert.equal(requests.at(-1).body.handle, 'H1');
-  const next = FakeSocket.all[1];
-  assert.ok(next, 'новое соединение открыто заранее');
-  assert.equal(socket.closedByUs, false);
-
-  call.sendAudio('AAAA');
-  assert.ok(socket.sent.some((m) => m.realtimeInput?.audio), 'звук идёт в старое соединение');
-
-  next.open();
-  next.emit({ setupComplete: {} });
-  assert.equal(socket.closedByUs, true, 'после готовности нового старое закрыто');
-  call.sendAudio('BBBB');
-  assert.ok(next.sent.some((m) => m.realtimeInput?.audio?.data === 'BBBB'));
+  assert.equal(FakeSocket.all.length, 2);
 });
 
 test('goAway посреди ответа ИИ: переключение после того, как он договорит', async () => {
   const { socket } = await startReady();
+  socket.emit({ serverContent: { modelTurn: { parts: [{ inlineData: { data: 'AA' } }] } } });
   socket.emit({ goAway: { timeLeft: '10s' } });
   await settle();
-  socket.emit({ serverContent: { modelTurn: { parts: [{ inlineData: { data: 'AA' } }] } } });
+  assert.equal(socket.closedByUs, false, 'ИИ ещё говорит — не обрываем');
+  assert.equal(FakeSocket.all.length, 1);
+  socket.emit({ serverContent: { turnComplete: true } });
+  assert.equal(socket.closedByUs, true);
+  await settle();
+  assert.equal(FakeSocket.all.length, 2);
+});
+
+test('речь ученика во время переключения не теряется — уходит в новое соединение', async () => {
+  const { call, socket } = await startReady();
+  socket.emit({ goAway: { timeLeft: '10s' } });
+  call.sendAudio('SAID-DURING-SWITCH');
+  await settle();
   const next = FakeSocket.all[1];
   next.open();
   next.emit({ setupComplete: {} });
-  assert.equal(socket.closedByUs, false, 'ИИ ещё говорит — не обрываем');
-  socket.emit({ serverContent: { turnComplete: true } });
-  assert.equal(socket.closedByUs, true);
+  assert.ok(next.sent.some((m) => m.realtimeInput?.audio?.data === 'SAID-DURING-SWITCH'));
 });
 
 test('end_call: ответ функции не отправляется — иначе ИИ говорит «The call has been ended»', async () => {
